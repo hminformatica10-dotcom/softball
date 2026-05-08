@@ -68,7 +68,11 @@ app.use((req, res, next) => {
   const userId = req.headers['x-user-id'] || 'SIN USER-ID';
   const teamId = req.headers['x-team-id'] || 'SIN TEAM-ID';
   
-  if (path.startsWith('/api')) {\n    console.log(`[${timestamp}] ${method.padEnd(6)} ${path.padEnd(30)} | IP: ${ip} | User: ${userId} | Team: ${teamId}`);\n  }\n  next();\n});
+  if (path.startsWith('/api')) {
+    console.log(`[${timestamp}] ${method.padEnd(6)} ${path.padEnd(30)} | IP: ${ip} | User: ${userId} | Team: ${teamId}`);
+  }
+  next();
+});
 
 // Health check for connectivity detection
 app.get('/api/health', (req, res) => {
