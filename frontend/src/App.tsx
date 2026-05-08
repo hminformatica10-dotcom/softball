@@ -82,17 +82,34 @@ const localFallbackUrls = [
 const testServerUrl = async (baseUrl: string) => {
   if (!baseUrl) return false;
   const healthUrl = baseUrl.replace(/\/$/, '') + '/api/health';
+  console.log('Frontend: Probando conexión con backend en:', healthUrl);
   try {
     const response = await fetch(healthUrl, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
       signal: AbortSignal.timeout(5000)
     });
+    if (response.ok) {
+      console.log('Frontend: Conexión exitosa con backend en:', healthUrl);
+    } else {
+      console.warn('Frontend: Respuesta no OK del backend en:', healthUrl, 'Status:', response.status);
+    }
     return response.ok;
-  } catch {
+  } catch (error) {
+    console.error('Frontend: Error al conectar con backend en:', healthUrl, error);
     return false;
   }
 };
+
+const isWebBrowser = !Capacitor.isNativePlatform();
+const genericBrowserUser = {
+  sub: 'softball_generic_user',
+  name: 'Usuario Genérico',
+  email: 'usuario@softball.local',
+  picture: '',
+  aud: 'softball_report'
+};
+
 
 function App() {
   const [apiUrl, setApiUrl] = useState(() => {
@@ -107,9 +124,11 @@ function App() {
   const fallbackApiUrls = localFallbackUrls;
 
   const resolveApiUrlFromConnectivity = async () => {
+    console.log('Frontend: Resolviendo URL de API...');
     if (preferredApiUrl && await testServerUrl(preferredApiUrl)) {
       setApiUrl(preferredApiUrl);
       setApiUrlSource('AWS');
+      console.log('Frontend: Usando API de AWS:', preferredApiUrl);
       return true;
     }
 
@@ -117,10 +136,12 @@ function App() {
       if (localUrl && await testServerUrl(localUrl)) {
         setApiUrl(localUrl);
         setApiUrlSource('LOCAL');
+        console.log('Frontend: Usando API local:', localUrl);
         return true;
       }
     }
 
+    console.error('Frontend: No se pudo conectar a ninguna URL de API');
     return false;
   };
 
@@ -676,6 +697,22 @@ function App() {
 
 
   const handleNativeLogin = async () => {
+    if (isWebBrowser) {
+      console.log('App: Navegador detectado, usando usuario genérico en lugar de Google Auth');
+      setUser(genericBrowserUser);
+      localStorage.setItem('softball_user', JSON.stringify(genericBrowserUser));
+
+      if (localStorage.getItem('softball_admin_recovery') === 'true') {
+        setIsRecoveryMode(true);
+        setIsSettingsOpen(true);
+      }
+
+      if (isOnline) {
+        setTimeout(() => processSyncQueue(), 500);
+      }
+      return;
+    }
+
     if (!Capacitor.isNativePlatform()) {
       alert('Google Auth sólo funciona en la app nativa.');
       return;
@@ -1473,7 +1510,7 @@ function App() {
             }}
           >
             <img src="https://developers.google.com/identity/images/g-logo.png" alt="Google" style={{ width: '22px', height: '22px' }} />
-            Entrar con Google
+            {isWebBrowser ? 'Entrar como usuario genérico' : 'Entrar con Google'}
           </button>
 
 

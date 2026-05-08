@@ -51,7 +51,10 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
 // Health check for connectivity detection
-app.get('/api/health', (req, res) => res.status(200).send('OK'));
+app.get('/api/health', (req, res) => {
+  console.log('Backend: Recibida petición de health check desde:', req.ip || req.connection.remoteAddress);
+  res.status(200).send('OK');
+});
 
 // --- Schemas ---
 
@@ -755,9 +758,9 @@ const connectDatabase = async () => {
 
   try {
     await mongoose.connect(MONGO_URI);
-    console.log('Connected to MongoDB Atlas');
+    console.log('Backend: Conectado exitosamente a MongoDB Atlas');
   } catch (err) {
-    console.error('MongoDB connection failed:', err);
+    console.error('Backend: Falló la conexión a MongoDB:', err);
   }
 };
 
@@ -773,7 +776,8 @@ process.on('uncaughtException', (error) => {
 const startServer = async () => {
   await connectDatabase();
   app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
+    console.log(`Backend: Servidor corriendo en puerto ${PORT}`);
+    console.log(`Backend: Health check disponible en http://localhost:${PORT}/api/health`);
   });
 };
 
