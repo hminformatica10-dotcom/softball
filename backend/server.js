@@ -19,11 +19,20 @@ const allowedOrigins = (process.env.CORS_ALLOWED_ORIGINS || '')
 
 const corsOptions = {
   origin: (origin, callback) => {
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+    if (!origin) {
+      console.log('[CORS] Request sin Origin header (permitido)');
+      return callback(null, true);
+    }
+    
+    const isAllowed = allowedOrigins.length === 0 || allowedOrigins.includes(origin);
+    
+    if (isAllowed) {
+      console.log(`[CORS] ✅ Origin permitido: ${origin}`);
       return callback(null, true);
     }
 
+    console.warn(`[CORS] ❌ Origin bloqueado: ${origin}`);
+    console.warn(`[CORS] Origins permitidos: ${allowedOrigins.length > 0 ? allowedOrigins.join(', ') : 'TODOS (lista vacía)'}`);
     return callback(new Error(`CORS policy blocked origin: ${origin}`), false);
   },
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -50,10 +59,38 @@ app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
+// Middleware para logging detallado de requests
+app.use((req, res, next) => {
+  const method = req.method;
+  const path = req.path;
+  const ip = req.ip || req.connection.remoteAddress;
+  const timestamp = new Date().toISOString();
+  const userId = req.headers['x-user-id'] || 'SIN USER-ID';
+  const teamId = req.headers['x-team-id'] || 'SIN TEAM-ID';
+  
+  if (path.startsWith('/api')) {\n    console.log(`[${timestamp}] ${method.padEnd(6)} ${path.padEnd(30)} | IP: ${ip} | User: ${userId} | Team: ${teamId}`);\n  }\n  next();\n});
+
 // Health check for connectivity detection
 app.get('/api/health', (req, res) => {
-  console.log('Backend: Recibida petición de health check desde:', req.ip || req.connection.remoteAddress);
-  res.status(200).send('OK');
+  const timestamp = new Date().toISOString();
+  const clientIp = req.ip || req.connection.remoteAddress || 'DESCONOCIDA';
+  const userAgent = req.headers['user-agent'] || 'NO ESPECIFICADO';
+  const origin = req.headers['origin'] || 'NO ESPECIFICADA';
+  
+  console.log('\n' + '='.repeat(60));
+  console.log(`[HEALTH CHECK] ${timestamp}`);
+  console.log(`  IP Cliente: ${clientIp}`);
+  console.log(`  Origin: ${origin}`);
+  console.log(`  User-Agent: ${userAgent}`);
+  console.log(`  Método: ${req.method}`);
+  console.log(`  URL: ${req.originalUrl}`);
+  console.log('='.repeat(60) + '\n');
+  
+  res.status(200).json({
+    status: 'OK',
+    timestamp: timestamp,
+    message: 'Backend conectado correctamente'
+  });
 });
 
 // --- Schemas ---
@@ -236,9 +273,13 @@ const requireTeam = (req, res, next) => {
 
 app.get('/api/teams', getUserId, async (req, res) => {
   try {
+    console.log(`\n📥 [GET /api/teams] Obteniendo equipos del usuario`);
+    console.log(`   User ID: ${req.userId}`);
     const teams = await Team.find({ userId: req.userId }).sort({ createdAt: 1 });
+    console.log(`   ✅ Equipos encontrados: ${teams.length}`);
     res.json(teams);
   } catch (err) {
+    console.error(`   ❌ Error: ${err.message}`);
     res.status(500).json({ error: err.message });
   }
 });
@@ -307,15 +348,25 @@ app.delete('/api/teams/:id', getUserId, async (req, res) => {
 
 app.get('/api/players', getUserId, requireTeam, async (req, res) => {
   try {
+    console.log(`\n📥 [GET /api/players] Obteniendo jugadores`);
+    console.log(`   User ID: ${req.userId}`);
+    console.log(`   Team ID: ${req.teamId}`);
     const players = await Player.find({ userId: req.userId, teamId: req.teamId }).sort({ createdAt: -1 });
+    console.log(`   Jugadores encontrados: ${players.length}`);
     res.json(players);
   } catch (err) {
+    console.error(`   Error: ${err.message}`);
     res.status(500).json({ error: err.message });
   }
 });
 
 app.post('/api/players', getUserId, requireTeam, async (req, res) => {
   try {
+    console.log(`\n📥 [POST /api/players] Creando nuevo jugador`);
+    console.log(`   User ID: ${req.userId}`);
+    console.log(`   Team ID: ${req.teamId}`);
+    console.log(`   Datos:`, { name: req.body.name, position: req.body.position, jerseyNumber: req.body.jerseyNumber });
+    
     const newPlayer = new Player({
       userId: req.userId,
       teamId: req.teamId,
@@ -326,14 +377,22 @@ app.post('/api/players', getUserId, requireTeam, async (req, res) => {
       photo: req.body.photo || '',
     });
     const savedPlayer = await newPlayer.save();
+    console.log(`   Jugador creado: ${savedPlayer._id}`);
     res.status(201).json(savedPlayer);
   } catch (err) {
+    console.error(`   Error: ${err.message}`);
     res.status(400).json({ error: err.message });
   }
 });
 
 app.put('/api/players/:id', getUserId, requireTeam, async (req, res) => {
   try {
+    console.log(`\n📥 [PUT /api/players/:id] Actualizando jugador`);
+    console.log(`   Player ID: ${req.params.id}`);
+    console.log(`   User ID: ${req.userId}`);
+    console.log(`   Team ID: ${req.teamId}`);
+    console.log(`   Nuevos datos:`, { name: req.body.name, position: req.body.position });
+    
     const updatedPlayer = await Player.findOneAndUpdate(
       { _id: req.params.id, userId: req.userId, teamId: req.teamId }, 
       {
@@ -345,9 +404,14 @@ app.put('/api/players/:id', getUserId, requireTeam, async (req, res) => {
       },
       { new: true }
     );
-    if (!updatedPlayer) return res.status(404).json({ error: 'Player not found or unauthorized' });
+    if (!updatedPlayer) {
+      console.warn(`   Jugador no encontrado`);
+      return res.status(404).json({ error: 'Player not found or unauthorized' });
+    }
+    console.log(`   Jugador actualizado`);
     res.json(updatedPlayer);
   } catch (err) {
+    console.error(`   Error: ${err.message}`);
     res.status(400).json({ error: err.message });
   }
 });
@@ -366,25 +430,45 @@ app.delete('/api/players/:id', getUserId, requireTeam, async (req, res) => {
 
 app.get('/api/payments', getUserId, requireTeam, async (req, res) => {
   try {
+    console.log(`\n📥 [GET /api/payments] Obteniendo pagos`);
+    console.log(`   User ID: ${req.userId}`);
+    console.log(`   Team ID: ${req.teamId}`);
+    
     const { playerId, startDate, endDate } = req.query;
     const query = { userId: req.userId, teamId: req.teamId };
 
-    if (playerId) query.playerId = playerId;
+    if (playerId) {
+      query.playerId = playerId;
+      console.log(`   Filtro: Player ID = ${playerId}`);
+    }
     if (startDate || endDate) {
       query.eventDate = {};
-      if (startDate) query.eventDate.$gte = new Date(startDate);
-      if (endDate) query.eventDate.$lte = new Date(endDate);
+      if (startDate) {
+        query.eventDate.$gte = new Date(startDate);
+        console.log(`   Filtro: Desde ${startDate}`);
+      }
+      if (endDate) {
+        query.eventDate.$lte = new Date(endDate);
+        console.log(`   Filtro: Hasta ${endDate}`);
+      }
     }
 
     const payments = await Payment.find(query).sort({ eventDate: -1 });
+    console.log(`   Pagos encontrados: ${payments.length}`);
     res.json(payments);
   } catch (err) {
+    console.error(`   Error: ${err.message}`);
     res.status(500).json({ error: err.message });
   }
 });
 
 app.post('/api/payments', getUserId, requireTeam, async (req, res) => {
   try {
+    console.log(`\n📥 [POST /api/payments] Registrando pago`);
+    console.log(`   User ID: ${req.userId}`);
+    console.log(`   Team ID: ${req.teamId}`);
+    console.log(`   Datos:`, { playerName: req.body.playerName, amount: req.body.amount, description: req.body.description });
+    
     const rawDate = req.body.eventDate || req.body.date;
     let finalDate = Date.now();
     if (rawDate) {
@@ -393,6 +477,7 @@ app.post('/api/payments', getUserId, requireTeam, async (req, res) => {
     }
 
     if (!req.body.description || req.body.description.trim() === '') {
+       console.warn(`   Descripción de pago vacía`);
        return res.status(400).json({ error: 'El concepto/descripción del pago es obligatorio.' });
     }
 
@@ -409,9 +494,11 @@ app.post('/api/payments', getUserId, requireTeam, async (req, res) => {
       conceptId: req.body.conceptId || null
     });
     const savedPayment = await newPayment.save();
+    console.log(`   Pago registrado: ${savedPayment._id}`);
 
     res.status(201).json(savedPayment);
   } catch (err) {
+    console.error(`   Error: ${err.message}`);
     res.status(400).json({ error: err.message });
   }
 });
@@ -491,24 +578,41 @@ app.delete('/api/payment-concepts/:id', getUserId, requireTeam, async (req, res)
 
 app.get('/api/expenses', getUserId, requireTeam, async (req, res) => {
   try {
+    console.log(`\n📥 [GET /api/expenses] Obteniendo gastos`);
+    console.log(`   User ID: ${req.userId}`);
+    console.log(`   Team ID: ${req.teamId}`);
+    
     const { startDate, endDate } = req.query;
     const query = { userId: req.userId, teamId: req.teamId };
 
     if (startDate || endDate) {
       query.eventDate = {};
-      if (startDate) query.eventDate.$gte = new Date(startDate);
-      if (endDate) query.eventDate.$lte = new Date(endDate);
+      if (startDate) {
+        query.eventDate.$gte = new Date(startDate);
+        console.log(`   Filtro: Desde ${startDate}`);
+      }
+      if (endDate) {
+        query.eventDate.$lte = new Date(endDate);
+        console.log(`   Filtro: Hasta ${endDate}`);
+      }
     }
 
     const expenses = await Expense.find(query).sort({ eventDate: -1 });
+    console.log(`   Gastos encontrados: ${expenses.length}`);
     res.json(expenses);
   } catch (err) {
+    console.error(`   Error: ${err.message}`);
     res.status(500).json({ error: err.message });
   }
 });
 
 app.post('/api/expenses', getUserId, requireTeam, async (req, res) => {
   try {
+    console.log(`\n📥 [POST /api/expenses] Registrando gasto`);
+    console.log(`   User ID: ${req.userId}`);
+    console.log(`   Team ID: ${req.teamId}`);
+    console.log(`   Datos:`, { category: req.body.category, amount: req.body.amount, description: req.body.description });
+    
     const rawDate = req.body.eventDate || req.body.date;
     let finalDate = Date.now();
     if (rawDate) {
@@ -527,8 +631,10 @@ app.post('/api/expenses', getUserId, requireTeam, async (req, res) => {
       registrationDate: Date.now()
     });
     const savedExpense = await newExpense.save();
+    console.log(`   Gasto registrado: ${savedExpense._id}`);
     res.status(201).json(savedExpense);
   } catch (err) {
+    console.error(`   Error: ${err.message}`);
     res.status(400).json({ error: err.message });
   }
 });
@@ -568,7 +674,12 @@ app.delete('/api/expenses/:id', getUserId, requireTeam, async (req, res) => {
 
 app.get('/api/games', getUserId, requireTeam, async (req, res) => {
   try {
+    console.log(`\n📥 [GET /api/games] Obteniendo juegos`);
+    console.log(`   User ID: ${req.userId}`);
+    console.log(`   Team ID: ${req.teamId}`);
+    
     const games = await Game.find({ userId: req.userId, teamId: req.teamId }).sort({ eventDate: 1 });
+    console.log(`   Juegos encontrados: ${games.length}`);
     res.json(games.map(g => ({
       id: g._id.toString(),
       opponent: g.opponent,
@@ -578,16 +689,23 @@ app.get('/api/games', getUserId, requireTeam, async (req, res) => {
       result: g.result
     })));
   } catch (err) {
+    console.error(`   Error: ${err.message}`);
     res.status(500).json({ error: err.message });
   }
 });
 
 app.post('/api/games', getUserId, requireTeam, async (req, res) => {
   try {
+    console.log(`\n📥 [POST /api/games] Registrando juego`);
+    console.log(`   User ID: ${req.userId}`);
+    console.log(`   Team ID: ${req.teamId}`);
+    console.log(`   Datos:`, { opponent: req.body.opponent, date: req.body.eventDate || req.body.date, time: req.body.time, location: req.body.location });
+    
     const rawDate = req.body.eventDate || req.body.date;
     const parsedDate = new Date(rawDate);
     
     if (!rawDate || isNaN(parsedDate.getTime())) {
+      console.warn(`   Fecha de juego inválida: ${rawDate}`);
       return res.status(400).json({ error: 'La fecha del juego es obligatoria y debe ser válida.' });
     }
 
@@ -602,6 +720,7 @@ app.post('/api/games', getUserId, requireTeam, async (req, res) => {
     });
     
     const savedGame = await newGame.save();
+    console.log(`   Juego registrado: ${savedGame._id}`);
 
     res.status(201).json({
       id: savedGame._id.toString(),
@@ -612,7 +731,7 @@ app.post('/api/games', getUserId, requireTeam, async (req, res) => {
       result: savedGame.result
     });
   } catch (err) {
-    console.error('ERROR CRÍTICO AL GUARDAR JUEGO:', err);
+    console.error(`   ERROR CRÍTICO AL GUARDAR JUEGO: ${err.message}`);
     res.status(500).json({ 
       error: 'Error interno al guardar el juego',
       details: err.message,
@@ -623,6 +742,12 @@ app.post('/api/games', getUserId, requireTeam, async (req, res) => {
 
 app.put('/api/games/:id', getUserId, requireTeam, async (req, res) => {
   try {
+    console.log(`\n📥 [PUT /api/games/:id] Actualizando juego`);
+    console.log(`   Game ID: ${req.params.id}`);
+    console.log(`   User ID: ${req.userId}`);
+    console.log(`   Team ID: ${req.teamId}`);
+    console.log(`   Nuevos datos:`, { opponent: req.body.opponent, result: req.body.result });
+    
     const gameDateString = req.body.eventDate || req.body.date;
     const updateData = {
       opponent: req.body.opponent,
@@ -641,7 +766,11 @@ app.put('/api/games/:id', getUserId, requireTeam, async (req, res) => {
       { new: true }
     );
     
-    if (!updatedGame) return res.status(404).json({ error: 'Juego no encontrado o no autorizado' });
+    if (!updatedGame) {
+      console.warn(`   Juego no encontrado`);
+      return res.status(404).json({ error: 'Juego no encontrado o no autorizado' });
+    }
+    console.log(`   Juego actualizado`);
     res.json({
       id: updatedGame._id.toString(),
       opponent: updatedGame.opponent,
@@ -651,7 +780,7 @@ app.put('/api/games/:id', getUserId, requireTeam, async (req, res) => {
       result: updatedGame.result
     });
   } catch (err) {
-    console.error('Error updating game:', err);
+    console.error(`   Error: ${err.message}`);
     res.status(400).json({ error: err.message });
   }
 });

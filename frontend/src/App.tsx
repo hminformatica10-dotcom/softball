@@ -80,23 +80,47 @@ const localFallbackUrls = [
 ].filter(Boolean) as string[];
 
 const testServerUrl = async (baseUrl: string) => {
-  if (!baseUrl) return false;
+  if (!baseUrl) {
+    console.log('[DEBUG] testServerUrl: baseUrl está vacío');
+    return false;
+  }
   const healthUrl = baseUrl.replace(/\/$/, '') + '/api/health';
-  console.log('Frontend: Probando conexión con backend en:', healthUrl);
+  console.log('\n===== CONEXIÓN AL BACKEND =====');
+  console.log(`[INFO] Intentando conectar a: ${healthUrl}`);
+  console.log(`[INFO] Plataforma: ${Capacitor.isNativePlatform() ? 'ANDROID/iOS' : 'NAVEGADOR'}`);
+  console.log('==============================\n');
+  
   try {
+    const startTime = performance.now();
+    console.log(`[DEBUG] Enviando request a ${healthUrl}...`);
+    
     const response = await fetch(healthUrl, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
       signal: AbortSignal.timeout(5000)
     });
+    
+    const endTime = performance.now();
+    const duration = (endTime - startTime).toFixed(2);
+    
     if (response.ok) {
-      console.log('Frontend: Conexión exitosa con backend en:', healthUrl);
+      console.log(`✅ [SUCCESS] Conexión exitosa con backend en: ${healthUrl}`);
+      console.log(`[INFO] Status: ${response.status} | Tiempo: ${duration}ms`);
+      const text = await response.text();
+      console.log(`[INFO] Respuesta: ${text}\n`);
     } else {
-      console.warn('Frontend: Respuesta no OK del backend en:', healthUrl, 'Status:', response.status);
+      console.warn(`❌ [ERROR] Respuesta no OK del backend`);
+      console.warn(`[INFO] URL: ${healthUrl}`);
+      console.warn(`[INFO] Status: ${response.status} | Tiempo: ${duration}ms\n`);
     }
     return response.ok;
-  } catch (error) {
-    console.error('Frontend: Error al conectar con backend en:', healthUrl, error);
+  } catch (error: any) {
+    console.error(`❌ [ERROR] Falló la conexión con backend`);
+    console.error(`[INFO] URL intentada: ${healthUrl}`);
+    console.error(`[INFO] Tipo de error: ${error?.name}`);
+    console.error(`[INFO] Mensaje: ${error?.message}`);
+    console.error(`[INFO] Detalles:`, error);
+    console.error('\n');
     return false;
   }
 };
@@ -124,24 +148,39 @@ function App() {
   const fallbackApiUrls = localFallbackUrls;
 
   const resolveApiUrlFromConnectivity = async () => {
-    console.log('Frontend: Resolviendo URL de API...');
-    if (preferredApiUrl && await testServerUrl(preferredApiUrl)) {
-      setApiUrl(preferredApiUrl);
-      setApiUrlSource('AWS');
-      console.log('Frontend: Usando API de AWS:', preferredApiUrl);
-      return true;
+    console.log('\n\n🔍 [INICIO] Resolviendo URL de API...');
+    console.log(`[INFO] URLs disponibles:`);
+    console.log(`  - AWS URL: ${preferredApiUrl || 'NO CONFIGURADA'}`);
+    console.log(`  - Fallback URLs: [${fallbackApiUrls.join(', ')}]\n`);
+    
+    if (preferredApiUrl) {
+      console.log(`[INTENTO 1] Probando URL de AWS: ${preferredApiUrl}`);
+      if (await testServerUrl(preferredApiUrl)) {
+        setApiUrl(preferredApiUrl);
+        setApiUrlSource('AWS');
+        console.log(`✅ [EXITO] Usando API de AWS: ${preferredApiUrl}\n`);
+        return true;
+      }
+    } else {
+      console.log(`[SKIP] No hay URL de AWS configurada\n`);
     }
 
-    for (const localUrl of fallbackApiUrls) {
-      if (localUrl && await testServerUrl(localUrl)) {
-        setApiUrl(localUrl);
-        setApiUrlSource('LOCAL');
-        console.log('Frontend: Usando API local:', localUrl);
-        return true;
+    console.log(`[INTENTO 2] Probando URLs fallback...`);
+    for (let i = 0; i < fallbackApiUrls.length; i++) {
+      const localUrl = fallbackApiUrls[i];
+      if (localUrl) {
+        console.log(`  [${i + 1}/${fallbackApiUrls.length}] Probando: ${localUrl}`);
+        if (await testServerUrl(localUrl)) {
+          setApiUrl(localUrl);
+          setApiUrlSource('LOCAL');
+          console.log(`✅ [EXITO] Usando API local: ${localUrl}\n`);
+          return true;
+        }
       }
     }
 
-    console.error('Frontend: No se pudo conectar a ninguna URL de API');
+    console.error(`❌ [FATAL] No se pudo conectar a NINGUNA URL de API`);
+    console.error(`Verifica que el backend esté corriendo y sea accesible.\n`);
     return false;
   };
 
@@ -413,9 +452,13 @@ function App() {
 
   // Función para verificar conectividad real con AWS primero, luego con local
   const checkRealConnectivity = async () => {
-    console.log('App: Verificando conectividad real con AWS y fallback local');
+    console.log('\n' + '='.repeat(60));
+    console.log('[APP] Verificando conectividad real con AWS y fallback local');
     const reachable = await resolveApiUrlFromConnectivity();
-    console.log('App: URL activa tras verificación:', apiUrl, 'Fuente:', apiUrlSource, 'Reachable:', reachable);
+    console.log(`[APP] URL activa tras verificación: ${apiUrl}`);
+    console.log(`[APP] Fuente: ${apiUrlSource}`);
+    console.log(`[APP] Backend alcanzable: ${reachable ? '✅ SI' : '❌ NO'}`);
+    console.log('='.repeat(60) + '\n');
     return reachable;
   };
 
@@ -436,15 +479,13 @@ function App() {
       candidates.unshift(preferredApiUrl);
     }
 
-    let lastError: any = null;
-    for (const base of candidates) {
+    console.log(`[FETCH] Petición a: ${path} | Intentos: ${candidates.length}`);\n    let lastError: any = null;
+    for (let i = 0; i < candidates.length; i++) {
+      const base = candidates[i];
       const url = buildApiUrl(base, path);
       try {
-        console.log('App: fetchWithFallback intentando URL:', url);
-        const res = await fetch(url, options);
-
-        if (res.ok) {
-          if (base === preferredApiUrl && apiUrlSource !== 'AWS') {
+        console.log(`  [${i + 1}/${candidates.length}] GET ${url}`);\n        const startTime = performance.now();\n        const res = await fetch(url, options);\n        const duration = (performance.now() - startTime).toFixed(2);\n\n        if (res.ok) {
+          console.log(`    ✅ Status: ${res.status} | Tiempo: ${duration}ms`);\n          if (base === preferredApiUrl && apiUrlSource !== 'AWS') {
             setApiUrl(base);
             setApiUrlSource('AWS');
           } else if (base !== preferredApiUrl && apiUrlSource !== 'LOCAL') {
@@ -454,19 +495,17 @@ function App() {
           return res;
         }
 
-        if (res.status >= 500) {
-          lastError = new Error(`Server error ${res.status}`);
-          continue;
+        console.warn(`    ⚠️ Status: ${res.status} | Tiempo: ${duration}ms`);\n        if (res.status >= 500) {
+          lastError = new Error(`Server error ${res.status}`);\n          continue;
         }
 
         return res;
-      } catch (err) {
-        console.warn('App: fetchWithFallback error en URL:', url, err);
-        lastError = err;
+      } catch (err: any) {
+        console.error(`    ❌ Error: ${err?.message}`);\n        lastError = err;
       }
     }
 
-    throw lastError || new Error('fetchWithFallback: No se pudo conectar a ninguna URL');
+    console.error(`[FETCH] ❌ No se pudo conectar a ninguna URL de: ${path}`);\n    throw lastError || new Error('fetchWithFallback: No se pudo conectar a ninguna URL');
   };
 
   // --- Sistema de Detección de Conexión Robusto ---
