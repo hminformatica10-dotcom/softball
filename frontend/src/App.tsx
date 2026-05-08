@@ -79,12 +79,20 @@ const localFallbackUrls = [
   'http://10.0.2.2:5000'
 ].filter(Boolean) as string[];
 
+console.log('[DEBUG] Variables de entorno:');
+console.log(`  VITE_API_URL: "${import.meta.env.VITE_API_URL}"`);
+console.log(`  VITE_LOCAL_API_URL: "${import.meta.env.VITE_LOCAL_API_URL}"`);
+console.log(`  primaryApiUrl: "${primaryApiUrl}"`);
+console.log(`  localFallbackUrls: [${localFallbackUrls.join(', ')}]`);
+
 const testServerUrl = async (baseUrl: string) => {
+  console.log(`[DEBUG] testServerUrl recibió baseUrl: "${baseUrl}"`);
   if (!baseUrl) {
     console.log('[DEBUG] testServerUrl: baseUrl está vacío');
     return false;
   }
   const healthUrl = baseUrl.replace(/\/$/, '') + '/api/health';
+  console.log(`[DEBUG] healthUrl construido: "${healthUrl}"`);
   console.log('\n===== CONEXIÓN AL BACKEND =====');
   console.log(`[INFO] Intentando conectar a: ${healthUrl}`);
   console.log(`[INFO] Plataforma: ${Capacitor.isNativePlatform() ? 'ANDROID/iOS' : 'NAVEGADOR'}`);
@@ -149,6 +157,8 @@ function App() {
 
   const resolveApiUrlFromConnectivity = async () => {
     console.log('\n\n🔍 [INICIO] Resolviendo URL de API...');
+    console.log(`[DEBUG] preferredApiUrl: "${preferredApiUrl}"`);
+    console.log(`[DEBUG] fallbackApiUrls: [${fallbackApiUrls.join(', ')}]`);
     console.log(`[INFO] URLs disponibles:`);
     console.log(`  - AWS URL: ${preferredApiUrl || 'NO CONFIGURADA'}`);
     console.log(`  - Fallback URLs: [${fallbackApiUrls.join(', ')}]\n`);
@@ -479,13 +489,20 @@ function App() {
       candidates.unshift(preferredApiUrl);
     }
 
-    console.log(`[FETCH] Petición a: ${path} | Intentos: ${candidates.length}`);\n    let lastError: any = null;
+    console.log(`[FETCH] Petición a: ${path} | Intentos: ${candidates.length}`);
+    let lastError: any = null;
     for (let i = 0; i < candidates.length; i++) {
       const base = candidates[i];
       const url = buildApiUrl(base, path);
       try {
-        console.log(`  [${i + 1}/${candidates.length}] GET ${url}`);\n        const startTime = performance.now();\n        const res = await fetch(url, options);\n        const duration = (performance.now() - startTime).toFixed(2);\n\n        if (res.ok) {
-          console.log(`    ✅ Status: ${res.status} | Tiempo: ${duration}ms`);\n          if (base === preferredApiUrl && apiUrlSource !== 'AWS') {
+        console.log(`  [${i + 1}/${candidates.length}] GET ${url}`);
+        const startTime = performance.now();
+        const res = await fetch(url, options);
+        const duration = (performance.now() - startTime).toFixed(2);
+
+        if (res.ok) {
+          console.log(`    ✅ Status: ${res.status} | Tiempo: ${duration}ms`);
+          if (base === preferredApiUrl && apiUrlSource !== 'AWS') {
             setApiUrl(base);
             setApiUrlSource('AWS');
           } else if (base !== preferredApiUrl && apiUrlSource !== 'LOCAL') {
@@ -495,17 +512,21 @@ function App() {
           return res;
         }
 
-        console.warn(`    ⚠️ Status: ${res.status} | Tiempo: ${duration}ms`);\n        if (res.status >= 500) {
-          lastError = new Error(`Server error ${res.status}`);\n          continue;
+        console.warn(`    ⚠️ Status: ${res.status} | Tiempo: ${duration}ms`);
+        if (res.status >= 500) {
+          lastError = new Error(`Server error ${res.status}`);
+          continue;
         }
 
         return res;
       } catch (err: any) {
-        console.error(`    ❌ Error: ${err?.message}`);\n        lastError = err;
+        console.error(`    ❌ Error: ${err?.message}`);
+        lastError = err;
       }
     }
 
-    console.error(`[FETCH] ❌ No se pudo conectar a ninguna URL de: ${path}`);\n    throw lastError || new Error('fetchWithFallback: No se pudo conectar a ninguna URL');
+    console.error(`[FETCH] ❌ No se pudo conectar a ninguna URL de: ${path}`);
+    throw lastError || new Error('fetchWithFallback: No se pudo conectar a ninguna URL');
   };
 
   // --- Sistema de Detección de Conexión Robusto ---
