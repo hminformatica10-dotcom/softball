@@ -1594,7 +1594,7 @@ function App() {
               <div className="modal-body">
                 <div className="form-group" style={{ marginBottom: '1.5rem', paddingBottom: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
                   <label className="form-label">{t('Seleccionar Equipo Activo', config.language)} </label>
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                     <select className="input-field" value={activeTeamId} onChange={(e) => {
                       setActiveTeamId(e.target.value);
                       localStorage.setItem('softball_active_team', e.target.value);
@@ -1615,7 +1615,7 @@ function App() {
 
                 <div className="form-group">
                   <label className="form-label">{t('Color Principal', config.language)} </label>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
                     <input type="color" className="input-field" value={configRaw.primaryColor} onChange={(e) => setConfigRaw({ ...configRaw, primaryColor: e.target.value })} style={{ height: '50px', padding: '0.2rem', cursor: 'pointer', maxWidth: '80px' }} />
                     <span style={{ color: configRaw.primaryColor, fontWeight: 'bold' }}>{configRaw.primaryColor}</span>
                   </div>
@@ -1678,7 +1678,7 @@ function App() {
                         <>
                           <label className="form-label" style={{ color: '#22c55e' }}>Confirma el NUEVO PIN:</label>
                           <input type="password" pattern="[0-9]*" inputMode="numeric" maxLength={4} className="input-field" value={pinConfirmInput} onChange={e => setPinConfirmInput(e.target.value.replace(/[^0-9]/g, ''))} style={{ border: '1px solid #22c55e', letterSpacing: '10px', textAlign: 'center', fontSize: '1.5rem' }} autoFocus />
-                          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.8rem' }}>
+                          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.8rem', flexWrap: 'wrap' }}>
                             <button className="btn-secondary" onClick={() => setPinStep(1)}>Atrás</button>
                             <button className="btn-primary" onClick={() => {
                               if (pinInput === pinConfirmInput) {
@@ -1782,7 +1782,7 @@ function App() {
                 </div>
 
               </div>
-              <div className="modal-footer" style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <div className="modal-footer" style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
                 <button className="btn-danger" onClick={async () => {
                   if (confirm('¿Seguro que deseas intentar eliminar este equipo?')) {
                     const res = await fetch(`${TEAM_API_URL}/${activeTeamId}`, { method: 'DELETE', headers: getAuthHeaders() });
