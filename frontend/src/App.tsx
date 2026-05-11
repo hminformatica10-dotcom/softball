@@ -815,16 +815,33 @@ function App() {
     localStorage.setItem('softball_api_url', apiUrl);
 
     if (activeTeamId) {
-      await fetch(`${TEAM_API_URL}/${activeTeamId}`, {
-        method: 'PUT',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          name: newConfig.teamName,
-          primaryColor: newConfig.primaryColor,
-          adminPassword: newConfig.adminPassword
-        })
+      const updatedTeam = {
+        id: activeTeamId,
+        name: newConfig.teamName,
+        primaryColor: newConfig.primaryColor
+      };
+      setTeams((prev: any[]) => {
+        const next = prev.map(team => team.id === activeTeamId ? { ...team, ...updatedTeam } : team);
+        localStorage.setItem('softball_teams', JSON.stringify(next));
+        return next;
       });
-      fetchTeams();
+
+      if (isOnline) {
+        try {
+          await fetch(`${TEAM_API_URL}/${activeTeamId}`, {
+            method: 'PUT',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({
+              name: newConfig.teamName,
+              primaryColor: newConfig.primaryColor,
+              adminPassword: newConfig.adminPassword
+            })
+          });
+        } catch (err) {
+          console.warn('App: saveConfig - no se pudo actualizar el equipo en el servidor, se mantendrá localmente.', err);
+        }
+        fetchTeams();
+      }
     }
 
     setIsSettingsOpen(false);
@@ -1033,15 +1050,20 @@ function App() {
 
   const fetchData = async (url: string, cacheKey: string, setter: any, setLoading: any) => {
     const cached = localStorage.getItem(cacheKey);
-    if (cached) setter(JSON.parse(cached));
+    if (cached) {
+      setter(JSON.parse(cached));
+    } else if (!isOnline) {
+      // No hay conexión y no hay caché: limpiar el estado para no mostrar datos de otro equipo
+      setter([]);
+    }
 
     if (!isOnline) {
-      if (cached) setLoading(false);
+      if (setLoading) setLoading(false);
       return;
     }
 
     try {
-      if (!cached) setLoading(true);
+      if (!cached && setLoading) setLoading(true);
       const res = await fetchWithFallback(url, { headers: getAuthHeaders() });
       if (res.ok) {
         const data = await res.json();
@@ -1051,7 +1073,7 @@ function App() {
     } catch (err) {
       console.error('Fetch failed for ' + cacheKey, err);
     } finally {
-      setLoading(false);
+      if (setLoading) setLoading(false);
     }
   };
 
@@ -1139,13 +1161,34 @@ function App() {
   };
 
   const fetchTeams = async () => {
+    const cachedTeams = localStorage.getItem('softball_teams');
+    if (cachedTeams) {
+      try {
+        const parsedTeams = JSON.parse(cachedTeams);
+        if (Array.isArray(parsedTeams) && parsedTeams.length > 0) {
+          setTeams(parsedTeams);
+          if (!activeTeamId) {
+            setActiveTeamId(parsedTeams[0].id);
+            localStorage.setItem('softball_active_team', parsedTeams[0].id);
+          }
+        }
+      } catch (err) {
+        console.error('App: fetchTeams - no se pudo parsear caché de equipos', err);
+      }
+    }
+
+    if (!isOnline) {
+      setLoadingTeams(false);
+      return;
+    }
+
     try {
       setLoadingTeams(true);
-      const res = await fetch(TEAM_API_URL, { headers: { 'x-user-id': user?.sub || '' } });
+      const res = await fetchWithFallback(`${TEAM_API_URL}`, { headers: { 'x-user-id': user?.sub || '' } });
       if (res.ok) {
         let fetchedTeams = await res.json();
         if (fetchedTeams.length === 0) {
-          const createRes = await fetch(TEAM_API_URL, {
+          const createRes = await fetchWithFallback(TEAM_API_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'x-user-id': user?.sub || '' },
             body: JSON.stringify({ name: configRaw.teamName, primaryColor: configRaw.primaryColor })
@@ -1156,6 +1199,7 @@ function App() {
           }
         }
         setTeams(fetchedTeams);
+        localStorage.setItem('softball_teams', JSON.stringify(fetchedTeams));
         if (fetchedTeams.length > 0) {
           const stillExists = fetchedTeams.find((t: any) => t.id === activeTeamId);
           if (!stillExists) {
@@ -1164,7 +1208,11 @@ function App() {
           }
         }
       }
-    } catch (err) { } finally { setLoadingTeams(false); }
+    } catch (err) {
+      console.error('App: fetchTeams - error al obtener equipos desde API', err);
+    } finally {
+      setLoadingTeams(false);
+    }
   };
 
   useEffect(() => {
