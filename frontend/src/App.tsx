@@ -271,8 +271,6 @@ function App() {
 
   // New Lock Screen UI States
   const [showPin, setShowPin] = useState(false);
-  const [passwordInput, setPasswordInput] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
 
 
   // Inactivity Timer - RESTORED
@@ -2606,36 +2604,6 @@ function App() {
               </div>
             </div>
 
-            {/* Input para Contraseña Admin (Solo en modo desbloqueo como alternativa) */}
-            {!isSetup && (
-              <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label" style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'left', display: 'block', marginBottom: '0.5rem' }}>
-                  O Contraseña de Equipo
-                </label>
-                <div style={{ position: 'relative' }}>
-                  <Key size={18} color="#94a3b8" style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', zIndex: 5 }} />
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    placeholder="Contraseña Maestra"
-                    value={passwordInput}
-                    onChange={e => setPasswordInput(e.target.value)}
-                    className="input-field"
-                    style={{
-                      paddingLeft: '3rem',
-                      background: 'rgba(0,0,0,0.2)',
-                      border: '1px solid rgba(255,255,255,0.1)'
-                    }}
-                  />
-                  <button
-                    onClick={() => setShowPassword(!showPassword)}
-                    style={{ position: 'absolute', right: '1rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', zIndex: 5 }}
-                  >
-                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                  </button>
-                </div>
-              </div>
-            )}
-
             {pinError && (
               <div style={{
                 color: '#ef4444',
@@ -2684,15 +2652,13 @@ function App() {
                     }
                   } else {
                     // Unlock logic (PIN or Password)
-                    if (pinInput === localStorage.getItem('softball_app_pin') || passwordInput === config.adminPassword) {
+                    if (pinInput === localStorage.getItem('softball_app_pin')) {
                       setIsLocked(false);
                       setPinInput('');
-                      setPasswordInput('');
                       setPinError('');
                     } else {
-                      setPinError('Credenciales incorrectas. Vuelve a intentar.');
+                      setPinError('PIN incorrecto. Vuelve a intentar.');
                       setPinInput('');
-                      setPasswordInput('');
                     }
                   }
                 }}
