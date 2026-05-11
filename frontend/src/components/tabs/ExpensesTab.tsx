@@ -127,7 +127,7 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({
         
         {(() => {
           const filteredByDate = dateFilter ? expenses.filter(e => e.eventDate.includes(dateFilter)) : expenses;
-          const recentExpenses = filteredByDate.sort((a, b) => new Date(b.eventDate).getTime() - new Date(a.eventDate).getTime()).slice(0, 5);
+          const recentExpenses = filteredByDate.sort((a, b) => new Date(b.eventDate).getTime() - new Date(a.eventDate).getTime()).slice(0, dateFilter ? undefined : 5);
 
           return recentExpenses.length === 0 ? (
             <div className="empty-state">
@@ -150,14 +150,13 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({
                         <button 
                           className="btn-icon" 
                           onClick={() => openEditModal('expense', expense)}
-                          title={isOlderThan24h(expense.registrationDate) ? "Este gasto ya no puede ser editado directamente (Requiere contraseña)" : "Editar gasto"}
+                          title={isOlderThan24h(expense.registrationDate) ? "Este gasto requiere contraseña para editar" : "Editar gasto"}
                           style={{ 
-                            opacity: isOlderThan24h(expense.registrationDate) ? 0.5 : 1,
-                            cursor: isOlderThan24h(expense.registrationDate) ? 'not-allowed' : 'pointer'
+                            opacity: 1,
+                            cursor: 'pointer'
                           }}
-                          disabled={isOlderThan24h(expense.registrationDate)}
                         >
-                          {isOlderThan24h(expense.registrationDate) ? <Lock size={16} /> : <Edit2 size={16} />}
+                          {isOlderThan24h(expense.registrationDate) ? <Lock size={16} color="#f59e0b" /> : <Edit2 size={16} />}
                         </button>
                       )}
                     </div>

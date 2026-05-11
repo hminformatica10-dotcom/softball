@@ -330,27 +330,21 @@ function App() {
     adminPassword: activeTeam.adminPassword || 'admin123'
   };
 
-  const [theme, setTheme] = useState<'dark' | 'light'>((localStorage.getItem('softball_theme') as 'dark' | 'light') || 'dark');
+  const theme: 'dark' | 'light' = 'dark';
 
   // --- Efecto para Aplicar Tema ---
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('softball_theme', theme);
 
     // Adaptar StatusBar si es dispositivo móvil
     const adaptStatusBar = async () => {
       try {
-        if (theme === 'light') {
-          await StatusBar.setBackgroundColor({ color: '#f1f5f9' });
-          await StatusBar.setStyle({ style: Style.Light });
-        } else {
-          await StatusBar.setBackgroundColor({ color: '#0f172a' });
-          await StatusBar.setStyle({ style: Style.Dark });
-        }
+        await StatusBar.setBackgroundColor({ color: '#0f172a' });
+        await StatusBar.setStyle({ style: Style.Dark });
       } catch (e) { }
     };
     adaptStatusBar();
-  }, [theme]);
+  }, []);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -1295,7 +1289,7 @@ function App() {
   };
 
   const openEditModal = (type: string, data: any) => {
-    if (type === 'payment' && isOlderThan24h(data.registrationDate)) {
+    if ((type === 'payment' || type === 'expense') && isOlderThan24h(data.registrationDate)) {
       setSecurityChallenge({
         isOpen: true,
         onVerified: () => {
@@ -1333,7 +1327,11 @@ function App() {
     if (payload._authorizedEdit) {
       delete payload._authorizedEdit;
       const securityLog = `\n[SEGURIDAD: Edición autorizada el ${new Date().toLocaleString()}]`;
-      payload.notes = payload.notes ? payload.notes + securityLog : securityLog;
+      if (editModal.type === 'payment') {
+        payload.notes = payload.notes ? payload.notes + securityLog : securityLog;
+      } else if (editModal.type === 'expense') {
+        payload.description = payload.description ? payload.description + securityLog : securityLog;
+      }
     }
 
     if (editModal.type === 'payment') payload.amount = Number(payload.amount);
@@ -2770,14 +2768,6 @@ function App() {
           {renderSyncStatus()}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-          <button
-            className="btn-icon"
-            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-            title={theme === 'dark' ? 'Modo Claro' : 'Modo Oscuro'}
-            style={{ marginRight: '4px' }}
-          >
-            {theme === 'dark' ? <Sun size={20} color="#f8fafc" /> : <Moon size={20} color="#1e293b" />}
-          </button>
           <button className="btn-icon" onClick={() => setIsSettingsOpen(true)} title="Configuración">
             <Settings size={22} color={theme === 'dark' ? '#f8fafc' : '#1e293b'} />
           </button>

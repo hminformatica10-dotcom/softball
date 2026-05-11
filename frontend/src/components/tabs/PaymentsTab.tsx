@@ -163,7 +163,7 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
   const renderIndividualView = () => {
     const individualPayments = filteredPayments.filter(p => !p.conceptId);
     const filteredByDate = dateFilter ? individualPayments.filter(p => p.eventDate.includes(dateFilter)) : individualPayments;
-    const recentPayments = filteredByDate.sort((a, b) => new Date(b.eventDate).getTime() - new Date(a.eventDate).getTime()).slice(0, 5);
+    const recentPayments = filteredByDate.sort((a, b) => new Date(b.eventDate).getTime() - new Date(a.eventDate).getTime()).slice(0, dateFilter ? undefined : 5);
 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', width: '100%', gridColumn: '1 / -1' }}>
@@ -208,14 +208,13 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
                           <button 
                             className="btn-icon" 
                             onClick={() => openEditModal('payment', payment)}
-                            title={isOlderThan24h(payment.registrationDate) ? "Este pago ya no puede ser editado directamente (Requiere contraseña)" : "Editar pago"}
+                            title={isOlderThan24h(payment.registrationDate) ? "Este pago requiere contraseña para editar" : "Editar pago"}
                             style={{ 
-                              opacity: isOlderThan24h(payment.registrationDate) ? 0.5 : 1,
-                              cursor: isOlderThan24h(payment.registrationDate) ? 'not-allowed' : 'pointer'
+                              opacity: 1,
+                              cursor: 'pointer'
                             }}
-                            disabled={isOlderThan24h(payment.registrationDate)}
                           >
-                            {isOlderThan24h(payment.registrationDate) ? <Lock size={16} /> : <Edit2 size={16} />}
+                            {isOlderThan24h(payment.registrationDate) ? <Lock size={16} color="#f59e0b" /> : <Edit2 size={16} />}
                           </button>
                         )}
                       </div>

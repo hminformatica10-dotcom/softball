@@ -56,6 +56,7 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
   setViewingReceipt
 }) => {
   const [activeChart, setActiveChart] = React.useState(chartView);
+  const [showExportMenu, setShowExportMenu] = React.useState(false);
 
   // Sync internal state with prop if needed
   React.useEffect(() => {
@@ -190,6 +191,9 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
       receipt: e.receipt
     }))
   ].sort((a, b) => new Date(b.eventDate || 0).getTime() - new Date(a.eventDate || 0).getTime());
+
+  const showingAllForDate = reportSpecificDate && reportSpecificDate !== '';
+  const displayedTransactions = showingAllForDate ? combinedTransactions : combinedTransactions.slice(0, 5);
 
   const hexToRgb = (hex: string): [number, number, number] => {
     try {
@@ -403,12 +407,21 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
               <Search size={18} /> {t('Filtrar', config.language)}
               {hasActiveFilters && <span style={{ background: '#ef4444', borderRadius: '50%', width: '8px', height: '8px', marginLeft: '2px' }}></span>}
             </button>
-            <button onClick={exportToPDF} className="btn-primary" style={{ flex: 1, minWidth: '80px', background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)', padding: '0.6rem', gap: '0.4rem', fontSize: '0.85rem' }}>
-              <Download size={18} /> PDF
-            </button>
-            <button onClick={exportToExcel} className="btn-primary" style={{ flex: 1, minWidth: '80px', background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', padding: '0.6rem', gap: '0.4rem', fontSize: '0.85rem' }}>
-              <Download size={18} /> EXE
-            </button>
+            <div style={{ position: 'relative', flex: 1, minWidth: '160px' }}>
+              <button type="button" onClick={() => setShowExportMenu(prev => !prev)} className="btn-primary" style={{ width: '100%', background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', padding: '0.6rem', gap: '0.4rem', fontSize: '0.85rem', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                <Download size={18} /> Exportar
+              </button>
+              {showExportMenu && (
+                <div style={{ position: 'absolute', top: 'calc(100% + 0.5rem)', right: 0, width: '100%', background: 'rgba(15, 23, 42, 0.98)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '14px', boxShadow: '0 20px 40px rgba(0,0,0,0.25)', zIndex: 1000, overflow: 'hidden' }}>
+                  <button type="button" onClick={() => { setShowExportMenu(false); exportToPDF(); }} className="btn-secondary" style={{ width: '100%', justifyContent: 'flex-start', padding: '0.75rem 1rem', gap: '0.6rem', border: 'none', background: 'transparent', color: '#f8fafc', fontSize: '0.9rem' }}>
+                    <Download size={16} /> Generar PDF
+                  </button>
+                  <button type="button" onClick={() => { setShowExportMenu(false); exportToExcel(); }} className="btn-secondary" style={{ width: '100%', justifyContent: 'flex-start', padding: '0.75rem 1rem', gap: '0.6rem', border: 'none', background: 'transparent', color: '#f8fafc', fontSize: '0.9rem' }}>
+                    <Download size={16} /> Generar Excel
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
         
@@ -497,12 +510,12 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
       )}
 
       <div className="glass-panel" style={{ width: '100%', gridColumn: '1 / -1' }}>
-        <h2 className="section-title"><ClipboardCheck size={22} color="#a855f7" /> {t('Movimientos', config.language)} ({combinedTransactions.length})</h2>
-        {combinedTransactions.length === 0 ? (
+        <h2 className="section-title"><ClipboardCheck size={22} color="#a855f7" /> {t('Movimientos', config.language)} ({displayedTransactions.length}{!showingAllForDate && combinedTransactions.length > 5 ? ` de ${combinedTransactions.length}` : ''})</h2>
+        {displayedTransactions.length === 0 ? (
           <div className="empty-state"><h3>No hay registros</h3></div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '1rem' }}>
-            {combinedTransactions.map((tx: any) => {
+            {displayedTransactions.map((tx: any) => {
                const isDebt = tx.description === 'Deuda Pendiente';
                const isIncome = tx.type === 'ingreso';
                
