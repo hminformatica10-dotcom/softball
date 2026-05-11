@@ -63,7 +63,7 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
     )
     .sort((a, b) => new Date(b.eventDate || b.date || 0).getTime() - new Date(a.eventDate || a.date || 0).getTime());
 
-  const displayedGames = showAll ? filteredGames : filteredGames.slice(0, 3);
+  const displayedGames = showAll ? filteredGames : filteredGames.slice(0, 5);
 
   return (
     <div className="grid-layout">
@@ -116,7 +116,7 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
             })}
           </div>
 
-          {filteredGames.length > 3 && (
+          {filteredGames.length > 5 && (
             <button 
               onClick={() => setShowAll(!showAll)} 
               style={{ 
@@ -125,7 +125,7 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
                 fontWeight: '700', fontSize: '0.85rem'
               }}
             >
-              {showAll ? <><ChevronUp size={16} /> {t('Ver menos', config.language)}</> : <><ChevronDown size={16} /> {t('Ver más partidos', config.language)} ({filteredGames.length - 3})</>}
+              {showAll ? <><ChevronUp size={16} /> {t('Ver menos', config.language)}</> : <><ChevronDown size={16} /> {t('Ver más partidos', config.language)} ({filteredGames.length - 5})</>}
             </button>
           )}
         </div>
