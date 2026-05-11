@@ -42,6 +42,7 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
   const [newConceptData, setNewConceptData] = useState({ name: '', amount: '' });
   const [addingAbonoFor, setAddingAbonoFor] = useState<string | null>(null);
   const [abonoAmount, setAbonoAmount] = useState('');
+  const [dateFilter, setDateFilter] = useState('');
 
   const onCreateConcept = (e: React.FormEvent) => {
     e.preventDefault();
@@ -158,6 +159,76 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
       </form>
     </div>
   );
+
+  const renderIndividualView = () => {
+    const individualPayments = filteredPayments.filter(p => !p.conceptId);
+    const filteredByDate = dateFilter ? individualPayments.filter(p => p.eventDate.includes(dateFilter)) : individualPayments;
+    const recentPayments = filteredByDate.sort((a, b) => new Date(b.eventDate).getTime() - new Date(a.eventDate).getTime()).slice(0, 5);
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', width: '100%', gridColumn: '1 / -1' }}>
+        {renderIndividualForm()}
+        
+        <div className="glass-panel" style={{ height: 'fit-content' }}>
+          <h3 className="section-title" style={{ color: '#22c55e' }}>
+            <Activity size={22} /> {t('Historial de Pagos Individuales', config.language)}
+          </h3>
+          
+          <div className="form-group" style={{ marginBottom: '1rem' }}>
+            <label className="form-label">{t('Filtrar por Fecha', config.language)}</label>
+            <input 
+              type="date" 
+              className="input-field" 
+              value={dateFilter} 
+              onChange={e => setDateFilter(e.target.value)} 
+              style={{ colorScheme: 'dark' }} 
+            />
+          </div>
+          
+          {recentPayments.length === 0 ? (
+            <div className="empty-state">
+              <Activity size={48} color="#94a3b8" style={{ opacity: 0.3 }} />
+              <h3>{t('No hay pagos registrados', config.language)}</h3>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              {recentPayments.map(payment => {
+                const player = players.find(p => p.id === payment.playerId);
+                return (
+                  <div key={payment.id} className="player-card" style={{ padding: '0.75rem', borderLeft: '4px solid #22c55e' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <div style={{ fontWeight: 'bold', color: '#f8fafc' }}>{player?.name || 'Jugador desconocido'}</div>
+                        <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>{payment.notes || payment.description}</div>
+                        <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{new Date(payment.eventDate).toLocaleDateString(config.language === 'es' ? 'es-ES' : 'en-US')}</div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span style={{ fontWeight: 'bold', color: '#22c55e' }}>{formatCurrency(payment.amount)}</span>
+                        {openEditModal && (
+                          <button 
+                            className="btn-icon" 
+                            onClick={() => openEditModal('payment', payment)}
+                            title={isOlderThan24h(payment.registrationDate) ? "Este pago ya no puede ser editado directamente (Requiere contraseña)" : "Editar pago"}
+                            style={{ 
+                              opacity: isOlderThan24h(payment.registrationDate) ? 0.5 : 1,
+                              cursor: isOlderThan24h(payment.registrationDate) ? 'not-allowed' : 'pointer'
+                            }}
+                            disabled={isOlderThan24h(payment.registrationDate)}
+                          >
+                            {isOlderThan24h(payment.registrationDate) ? <Lock size={16} /> : <Edit2 size={16} />}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   const renderConceptosDashboard = () => (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', width: '100%', gridColumn: '1 / -1' }}>
@@ -397,7 +468,7 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
       </div>
 
       {activeSubTab === 'individual' ? (
-        renderIndividualForm()
+        renderIndividualView()
       ) : (
         <>
           {selectedConcept ? renderConceptDetailView(selectedConcept) : renderConceptosDashboard()}

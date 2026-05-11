@@ -1,7 +1,8 @@
-import { CreditCard, Camera, X } from 'lucide-react';
+import { CreditCard, Camera, X, Edit2, Lock, Activity } from 'lucide-react';
 import { t } from '../../translations';
-import type { AppConfig } from '../../types';
-import React from 'react';
+import { isOlderThan24h } from '../../utils';
+import type { AppConfig, Expense } from '../../types';
+import React, { useState } from 'react';
 
 interface ExpensesTabProps {
   config: AppConfig;
@@ -10,6 +11,9 @@ interface ExpensesTabProps {
   handleExpenseSubmit: (e: React.FormEvent) => void;
   expenseCategories: string[];
   setViewingReceipt?: (val: string | null) => void;
+  expenses?: Expense[];
+  formatCurrency?: (val: number) => string;
+  openEditModal?: (type: string, data: any) => void;
 }
 
 export const ExpensesTab: React.FC<ExpensesTabProps> = ({
@@ -18,8 +22,12 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({
   setExpenseFormData,
   handleExpenseSubmit,
   expenseCategories,
-  setViewingReceipt
+  setViewingReceipt,
+  expenses = [],
+  formatCurrency = (val) => `$${val.toFixed(2)}`,
+  openEditModal
 }) => {
+  const [dateFilter, setDateFilter] = useState('');
   const handlePhotoCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -33,7 +41,7 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({
 
   return (
     <div className="grid-layout">
-      <div className="glass-panel">
+      <div className="glass-panel" style={{ gridColumn: '1 / -1' }}>
         <h2 className="section-title"><CreditCard size={24} color="#ef4444" />{t('Gasto de Equipo', config.language)} </h2>
         <form onSubmit={handleExpenseSubmit}>
           <div className="form-group">
@@ -99,6 +107,66 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({
             <CreditCard size={18} /> {t('Guardar Gasto', config.language)} 
           </button>
         </form>
+      </div>
+
+      <div className="glass-panel" style={{ gridColumn: '1 / -1' }}>
+        <h3 className="section-title" style={{ color: '#ef4444' }}>
+          <Activity size={22} /> {t('Historial de Gastos', config.language)}
+        </h3>
+        
+        <div className="form-group" style={{ marginBottom: '1rem' }}>
+          <label className="form-label">{t('Filtrar por Fecha', config.language)}</label>
+          <input 
+            type="date" 
+            className="input-field" 
+            value={dateFilter} 
+            onChange={e => setDateFilter(e.target.value)} 
+            style={{ colorScheme: 'dark' }} 
+          />
+        </div>
+        
+        {(() => {
+          const filteredByDate = dateFilter ? expenses.filter(e => e.eventDate.includes(dateFilter)) : expenses;
+          const recentExpenses = filteredByDate.sort((a, b) => new Date(b.eventDate).getTime() - new Date(a.eventDate).getTime()).slice(0, 5);
+
+          return recentExpenses.length === 0 ? (
+            <div className="empty-state">
+              <Activity size={48} color="#94a3b8" style={{ opacity: 0.3 }} />
+              <h3>{t('No hay gastos registrados', config.language)}</h3>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              {recentExpenses.map(expense => (
+                <div key={expense.id} className="player-card" style={{ padding: '0.75rem', borderLeft: '4px solid #ef4444' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ fontWeight: 'bold', color: '#f8fafc' }}>{expense.category}</div>
+                      <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>{expense.description}</div>
+                      <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{new Date(expense.eventDate).toLocaleDateString(config.language === 'es' ? 'es-ES' : 'en-US')}</div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span style={{ fontWeight: 'bold', color: '#ef4444' }}>{formatCurrency(expense.amount)}</span>
+                      {openEditModal && (
+                        <button 
+                          className="btn-icon" 
+                          onClick={() => openEditModal('expense', expense)}
+                          title={isOlderThan24h(expense.registrationDate) ? "Este gasto ya no puede ser editado directamente (Requiere contraseña)" : "Editar gasto"}
+                          style={{ 
+                            opacity: isOlderThan24h(expense.registrationDate) ? 0.5 : 1,
+                            cursor: isOlderThan24h(expense.registrationDate) ? 'not-allowed' : 'pointer'
+                          }}
+                          disabled={isOlderThan24h(expense.registrationDate)}
+                        >
+                          {isOlderThan24h(expense.registrationDate) ? <Lock size={16} /> : <Edit2 size={16} />}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
       </div>
     </div>
   );

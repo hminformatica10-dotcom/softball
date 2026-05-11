@@ -2380,6 +2380,9 @@ function App() {
             setExpenseFormData={setExpenseFormData}
             handleExpenseSubmit={handleExpenseSubmit}
             expenseCategories={expenseCategories}
+            expenses={expenses}
+            formatCurrency={formatCurrency}
+            openEditModal={openEditModal}
           />
         );
       case 'Inicio':
