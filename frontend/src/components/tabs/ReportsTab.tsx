@@ -205,144 +205,247 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
     } catch { return [56, 189, 248]; }
   };
 
-  const exportToPDF = async () => {
-    try {
-      const doc = new jsPDF();
-      const teamColor = hexToRgb(config.primaryColor || '#38bdf8');
-      const secondaryTextColor = [100, 116, 139];
+  const generatePDF = async () => {
+    const doc = new jsPDF();
+    const teamColor = hexToRgb(config.primaryColor || '#38bdf8');
+    const secondaryTextColor = [100, 116, 139];
 
-      // --- HEADER ---
-      doc.setFillColor(teamColor[0], teamColor[1], teamColor[2]);
-      doc.rect(0, 0, 210, 40, 'F');
-      
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(22);
-      doc.setFont("helvetica", "bold");
-      doc.text(config.teamName || 'Reporte Softball', 15, 22);
-      
-      doc.setFontSize(10);
-      doc.setFont("helvetica", "normal");
-      doc.text("REPORTE FINANCIERO OFICIAL", 15, 30);
-      
-      const reportDateRange = reportSpecificDate ? formatDate(reportSpecificDate) : 
-                            (startDate || endDate ? `${formatDate(startDate || 'Inicio')} - ${formatDate(endDate || 'Hoy')}` : "Todo el historial");
-      doc.text(`Periodo: ${reportDateRange}`, 210 - 15, 30, { align: 'right' });
+    // --- HEADER ---
+    doc.setFillColor(teamColor[0], teamColor[1], teamColor[2]);
+    doc.rect(0, 0, 210, 40, 'F');
+    
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(22);
+    doc.setFont("helvetica", "bold");
+    doc.text(config.teamName || 'Reporte Softball', 15, 22);
+    
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.text("REPORTE FINANCIERO OFICIAL", 15, 30);
+    
+    const reportDateRange = reportSpecificDate ? formatDate(reportSpecificDate) : 
+                          (startDate || endDate ? `${formatDate(startDate || 'Inicio')} - ${formatDate(endDate || 'Hoy')}` : "Todo el historial");
+    doc.text(`Periodo: ${reportDateRange}`, 210 - 15, 30, { align: 'right' });
 
-      // --- SUMMARY CARDS ---
-      let currentY = 55;
+    // --- SUMMARY CARDS ---
+    let currentY = 55;
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(14);
+    doc.text("Resumen Financiero", 15, currentY);
+    
+    currentY += 8;
+    // Cards container
+    doc.setDrawColor(226, 232, 240);
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(15, currentY, 180, 25, 3, 3, 'FD');
+    
+    // Income
+    doc.setFontSize(9);
+    doc.setTextColor(secondaryTextColor[0], secondaryTextColor[1], secondaryTextColor[2]);
+    doc.text("INGRESOS TOTALES", 25, currentY + 8);
+    doc.setFontSize(12);
+    doc.setTextColor(34, 197, 94);
+    doc.text(formatCurrency(liquidIncome), 25, currentY + 18);
+    
+    // Expenses
+    doc.setFontSize(9);
+    doc.setTextColor(secondaryTextColor[0], secondaryTextColor[1], secondaryTextColor[2]);
+    doc.text("GASTOS TOTALES", 85, currentY + 8);
+    doc.setFontSize(12);
+    doc.setTextColor(239, 68, 68);
+    doc.text(formatCurrency(filteredExpensesTotal), 85, currentY + 18);
+    
+    // Balance
+    doc.setFontSize(9);
+    doc.setTextColor(secondaryTextColor[0], secondaryTextColor[1], secondaryTextColor[2]);
+    doc.text("SALDO NETO", 145, currentY + 8);
+    doc.setFontSize(12);
+    doc.setTextColor(teamColor[0], teamColor[1], teamColor[2]);
+    doc.text(formatCurrency(liquidBalance), 145, currentY + 18);
+
+    // --- DETAILED TABLES ---
+    currentY += 40;
+
+    // 1. INCOME TABLE
+    const incomes = combinedTransactions.filter(t => t.type === 'ingreso' && t.description !== 'Deuda Pendiente');
+    if (incomes.length > 0) {
       doc.setTextColor(0, 0, 0);
       doc.setFontSize(14);
-      doc.text("Resumen Financiero", 15, currentY);
+      doc.text(`Detalle de Ingresos (${incomes.length})`, 15, currentY);
       
-      currentY += 8;
-      // Cards container
-      doc.setDrawColor(226, 232, 240);
-      doc.setFillColor(248, 250, 252);
-      doc.roundedRect(15, currentY, 180, 25, 3, 3, 'FD');
+      const result = autoTable(doc, {
+        startY: currentY + 4,
+        head: [["Fecha", "Jugador", "Concepto", "Monto"]],
+        body: incomes.map(tx => {
+          let conceptText = tx.description;
+          if (tx.conceptId) {
+            const gc = groupConcepts.find(c => c.id === tx.conceptId || c._id === tx.conceptId);
+            if (gc) conceptText = `[Grup] ${gc.name}`;
+          }
+          return [formatDate(tx.eventDate), tx.title, conceptText, formatCurrency(tx.amount)];
+        }),
+        headStyles: { fillColor: teamColor, textColor: [255, 255, 255], fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: [250, 250, 250] },
+        margin: { left: 15, right: 15 }
+      });
+      currentY = result.finalY + 15;
+    }
+
+    // 2. EXPENSE TABLE
+    const transExpenses = combinedTransactions.filter(t => t.type === 'gasto');
+    if (transExpenses.length > 0) {
+      if (currentY > 240) { doc.addPage(); currentY = 20; }
       
-      // Income
-      doc.setFontSize(9);
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(14);
+      doc.text(`Detalle de Gastos (${transExpenses.length})`, 15, currentY);
+      
+      const result = autoTable(doc, {
+        startY: currentY + 4,
+        head: [["Fecha", "Categoría", "Descripción", "Monto"]],
+        body: transExpenses.map(tx => [formatDate(tx.eventDate), tx.title, tx.description, formatCurrency(tx.amount)]),
+        headStyles: { fillColor: [226, 232, 240], textColor: [71, 85, 105], fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: [250, 250, 250] },
+        margin: { left: 15, right: 15 }
+      });
+      currentY = result.finalY + 15;
+    }
+
+    // 3. DEBTS TABLE (If any in filter)
+    const debts = combinedTransactions.filter(t => t.description === 'Deuda Pendiente');
+    if (debts.length > 0) {
+      if (currentY > 240) { doc.addPage(); currentY = 20; }
+      
+      doc.setTextColor(245, 158, 11);
+      doc.setFontSize(14);
+      doc.text(`Deudas Pendientes por Cobrar (${debts.length})`, 15, currentY);
+      
+      autoTable(doc, {
+        startY: currentY + 4,
+        head: [["Fecha", "Jugador", "Referencia", "Monto"]],
+        body: debts.map(tx => [formatDate(tx.eventDate), tx.title, "Deuda Asistencia", formatCurrency(tx.amount)]),
+        headStyles: { fillColor: [245, 158, 11], textColor: [255, 255, 255], fontStyle: 'bold' },
+        margin: { left: 15, right: 15 }
+      });
+    }
+
+    // --- FOOTER ---
+    const pageCount = doc.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
       doc.setTextColor(secondaryTextColor[0], secondaryTextColor[1], secondaryTextColor[2]);
-      doc.text("INGRESOS TOTALES", 25, currentY + 8);
-      doc.setFontSize(12);
-      doc.setTextColor(34, 197, 94);
-      doc.text(formatCurrency(liquidIncome), 25, currentY + 18);
+      doc.text(
+        `Generado el ${new Date().toLocaleString()} - ZeratyX Soft Ball App - Página ${i} de ${pageCount}`,
+        105, 290, { align: 'center' }
+      );
+    }
+    return doc;
+  };
+
+  const sharePDFWhatsApp = async () => {
+    try {
+      const doc = await generatePDF();
+      const fileName = `Reporte_${config.teamName}_${new Date().toISOString().split('T')[0]}.pdf`.replace(/\s+/g, '_');
       
-      // Expenses
-      doc.setFontSize(9);
-      doc.setTextColor(secondaryTextColor[0], secondaryTextColor[1], secondaryTextColor[2]);
-      doc.text("GASTOS TOTALES", 85, currentY + 8);
-      doc.setFontSize(12);
-      doc.setTextColor(239, 68, 68);
-      doc.text(formatCurrency(filteredExpensesTotal), 85, currentY + 18);
+      if (Capacitor.isNativePlatform()) {
+        const base64PDF = doc.output('datauristring').split(',')[1];
+        const savedFile = await Filesystem.writeFile({ 
+          path: fileName, 
+          data: base64PDF, 
+          directory: Directory.Cache 
+        });
+        await Share.share({ title: 'Reporte Contable', url: savedFile.uri });
+      } else {
+        doc.save(fileName);
+      }
+    } catch (err: any) { alert("Error al compartir PDF: " + err.message); }
+  };
+
+  const savePDFToPhone = async () => {
+    try {
+      const doc = await generatePDF();
+      const fileName = `Reporte_${config.teamName}_${new Date().toISOString().split('T')[0]}.pdf`.replace(/\s+/g, '_');
       
-      // Balance
-      doc.setFontSize(9);
-      doc.setTextColor(secondaryTextColor[0], secondaryTextColor[1], secondaryTextColor[2]);
-      doc.text("SALDO NETO", 145, currentY + 8);
-      doc.setFontSize(12);
-      doc.setTextColor(teamColor[0], teamColor[1], teamColor[2]);
-      doc.text(formatCurrency(liquidBalance), 145, currentY + 18);
-
-      // --- DETAILED TABLES ---
-      currentY += 40;
-
-      // 1. INCOME TABLE
-      const incomes = combinedTransactions.filter(t => t.type === 'ingreso' && t.description !== 'Deuda Pendiente');
-      if (incomes.length > 0) {
-        doc.setTextColor(0, 0, 0);
-        doc.setFontSize(14);
-        doc.text(`Detalle de Ingresos (${incomes.length})`, 15, currentY);
-        
-        const result = autoTable(doc, {
-          startY: currentY + 4,
-          head: [["Fecha", "Jugador", "Concepto", "Monto"]],
-          body: incomes.map(tx => {
-            let conceptText = tx.description;
-            if (tx.conceptId) {
-              const gc = groupConcepts.find(c => c.id === tx.conceptId || c._id === tx.conceptId);
-              if (gc) conceptText = `[Grup] ${gc.name}`;
-            }
-            return [formatDate(tx.eventDate), tx.title, conceptText, formatCurrency(tx.amount)];
-          }),
-          headStyles: { fillColor: teamColor, textColor: [255, 255, 255], fontStyle: 'bold' },
-          alternateRowStyles: { fillColor: [250, 250, 250] },
-          margin: { left: 15, right: 15 }
+      if (Capacitor.isNativePlatform()) {
+        const base64PDF = doc.output('datauristring').split(',')[1];
+        await Filesystem.writeFile({ 
+          path: fileName, 
+          data: base64PDF, 
+          directory: Directory.Documents 
         });
-        currentY = result.finalY + 15;
+        alert(`PDF guardado en Documentos: ${fileName}`);
+      } else {
+        doc.save(fileName);
+        alert(`PDF descargado: ${fileName}`);
       }
+    } catch (err: any) { alert("Error al guardar PDF: " + err.message); }
+  };
 
-      // 2. EXPENSE TABLE
-      const transExpenses = combinedTransactions.filter(t => t.type === 'gasto');
-      if (transExpenses.length > 0) {
-        // Check page overflow
-        if (currentY > 240) { doc.addPage(); currentY = 20; }
-        
-        doc.setTextColor(0, 0, 0);
-        doc.setFontSize(14);
-        doc.text(`Detalle de Gastos (${transExpenses.length})`, 15, currentY);
-        
-        const result = autoTable(doc, {
-          startY: currentY + 4,
-          head: [["Fecha", "Categoría", "Descripción", "Monto"]],
-          body: transExpenses.map(tx => [formatDate(tx.eventDate), tx.title, tx.description, formatCurrency(tx.amount)]),
-          headStyles: { fillColor: [226, 232, 240], textColor: [71, 85, 105], fontStyle: 'bold' },
-          alternateRowStyles: { fillColor: [250, 250, 250] },
-          margin: { left: 15, right: 15 }
-        });
-        currentY = result.finalY + 15;
+  const shareExcelWhatsApp = async () => {
+    try {
+      const dataToExport = combinedTransactions.map(tx => {
+        let conceptText = tx.title;
+        if (tx.conceptId) {
+          const gc = groupConcepts.find(c => c.id === tx.conceptId || c._id === tx.conceptId);
+          if (gc) conceptText = `[Grup] ${gc.name}`;
+        }
+        return {
+          "Fecha": formatDate(tx.eventDate || ''),
+          "Tipo": tx.type === 'ingreso' ? (tx.description === 'Deuda Pendiente' ? 'DEUDA' : 'INGRESO') : 'GASTO',
+          "Concepto": conceptText,
+          "Descripción": tx.description,
+          "Nota": tx.notes || '',
+          "Monto": tx.amount
+        };
+      });
+      const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Finanzas");
+      const fileName = `Reporte_${config.teamName}.xlsx`;
+      if (Capacitor.isNativePlatform()) {
+        const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'base64' });
+        const savedFile = await Filesystem.writeFile({ path: fileName, data: buffer, directory: Directory.Cache });
+        await Share.share({ title: 'Reporte Excel', url: savedFile.uri });
+      } else XLSX.writeFile(workbook, fileName);
+    } catch (err: any) { alert("Error al compartir Excel: " + err.message); }
+  };
+
+  const saveExcelToPhone = async () => {
+    try {
+      const dataToExport = combinedTransactions.map(tx => {
+        let conceptText = tx.title;
+        if (tx.conceptId) {
+          const gc = groupConcepts.find(c => c.id === tx.conceptId || c._id === tx.conceptId);
+          if (gc) conceptText = `[Grup] ${gc.name}`;
+        }
+        return {
+          "Fecha": formatDate(tx.eventDate || ''),
+          "Tipo": tx.type === 'ingreso' ? (tx.description === 'Deuda Pendiente' ? 'DEUDA' : 'INGRESO') : 'GASTO',
+          "Concepto": conceptText,
+          "Descripción": tx.description,
+          "Nota": tx.notes || '',
+          "Monto": tx.amount
+        };
+      });
+      const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Finanzas");
+      const fileName = `Reporte_${config.teamName}.xlsx`;
+      if (Capacitor.isNativePlatform()) {
+        const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'base64' });
+        await Filesystem.writeFile({ path: fileName, data: buffer, directory: Directory.Documents });
+        alert(`Excel guardado en Documentos: ${fileName}`);
+      } else {
+        XLSX.writeFile(workbook, fileName);
+        alert(`Excel descargado: ${fileName}`);
       }
+    } catch (err: any) { alert("Error al guardar Excel: " + err.message); }
+  };
 
-      // 3. DEBTS TABLE (If any in filter)
-      const debts = combinedTransactions.filter(t => t.description === 'Deuda Pendiente');
-      if (debts.length > 0) {
-        if (currentY > 240) { doc.addPage(); currentY = 20; }
-        
-        doc.setTextColor(245, 158, 11);
-        doc.setFontSize(14);
-        doc.text(`Deudas Pendientes por Cobrar (${debts.length})`, 15, currentY);
-        
-        autoTable(doc, {
-          startY: currentY + 4,
-          head: [["Fecha", "Jugador", "Referencia", "Monto"]],
-          body: debts.map(tx => [formatDate(tx.eventDate), tx.title, "Deuda Asistencia", formatCurrency(tx.amount)]),
-          headStyles: { fillColor: [245, 158, 11], textColor: [255, 255, 255], fontStyle: 'bold' },
-          margin: { left: 15, right: 15 }
-        });
-      }
-
-      // --- FOOTER ---
-      const pageCount = doc.getNumberOfPages();
-      for (let i = 1; i <= pageCount; i++) {
-        doc.setPage(i);
-        doc.setFontSize(8);
-        doc.setTextColor(secondaryTextColor[0], secondaryTextColor[1], secondaryTextColor[2]);
-        doc.text(
-          `Generado el ${new Date().toLocaleString()} - ZeratyX Soft Ball App - Página ${i} de ${pageCount}`,
-          105, 290, { align: 'center' }
-        );
-      }
-
+  const exportToPDF = async () => {
+    try {
+      const doc = await generatePDF();
       const fileName = `Reporte_${config.teamName}_${new Date().toISOString().split('T')[0]}.pdf`.replace(/\s+/g, '_');
       
       if (Capacitor.isNativePlatform()) {
@@ -362,19 +465,19 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
   const exportToExcel = async () => {
     try {
       const dataToExport = combinedTransactions.map(tx => {
-          let conceptText = tx.title;
-          if (tx.conceptId) {
-            const gc = groupConcepts.find(c => c.id === tx.conceptId || c._id === tx.conceptId);
-            if (gc) conceptText = `[Grup] ${gc.name}`;
-          }
-          return {
-            "Fecha": formatDate(tx.eventDate || ''),
-            "Tipo": tx.type === 'ingreso' ? (tx.description === 'Deuda Pendiente' ? 'DEUDA' : 'INGRESO') : 'GASTO',
-            "Concepto": conceptText,
-            "Descripción": tx.description,
-            "Nota": tx.notes || '',
-            "Monto": tx.amount
-          };
+        let conceptText = tx.title;
+        if (tx.conceptId) {
+          const gc = groupConcepts.find(c => c.id === tx.conceptId || c._id === tx.conceptId);
+          if (gc) conceptText = `[Grup] ${gc.name}`;
+        }
+        return {
+          "Fecha": formatDate(tx.eventDate || ''),
+          "Tipo": tx.type === 'ingreso' ? (tx.description === 'Deuda Pendiente' ? 'DEUDA' : 'INGRESO') : 'GASTO',
+          "Concepto": conceptText,
+          "Descripción": tx.description,
+          "Nota": tx.notes || '',
+          "Monto": tx.amount
+        };
       });
       const worksheet = XLSX.utils.json_to_sheet(dataToExport);
       const workbook = XLSX.utils.book_new();
@@ -413,11 +516,17 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
               </button>
               {showExportMenu && (
                 <div style={{ position: 'absolute', top: 'calc(100% + 0.5rem)', right: 0, width: '100%', background: 'rgba(15, 23, 42, 0.98)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '14px', boxShadow: '0 20px 40px rgba(0,0,0,0.25)', zIndex: 1000, overflow: 'hidden' }}>
-                  <button type="button" onClick={() => { setShowExportMenu(false); exportToPDF(); }} className="btn-secondary" style={{ width: '100%', justifyContent: 'flex-start', padding: '0.75rem 1rem', gap: '0.6rem', border: 'none', background: 'transparent', color: '#f8fafc', fontSize: '0.9rem' }}>
-                    <Download size={16} /> Generar PDF
+                  <button type="button" onClick={() => { setShowExportMenu(false); sharePDFWhatsApp(); }} className="btn-secondary" style={{ width: '100%', justifyContent: 'flex-start', padding: '0.75rem 1rem', gap: '0.6rem', border: 'none', background: 'transparent', color: '#f8fafc', fontSize: '0.9rem' }}>
+                    <Download size={16} /> PDF por WhatsApp
                   </button>
-                  <button type="button" onClick={() => { setShowExportMenu(false); exportToExcel(); }} className="btn-secondary" style={{ width: '100%', justifyContent: 'flex-start', padding: '0.75rem 1rem', gap: '0.6rem', border: 'none', background: 'transparent', color: '#f8fafc', fontSize: '0.9rem' }}>
-                    <Download size={16} /> Generar Excel
+                  <button type="button" onClick={() => { setShowExportMenu(false); savePDFToPhone(); }} className="btn-secondary" style={{ width: '100%', justifyContent: 'flex-start', padding: '0.75rem 1rem', gap: '0.6rem', border: 'none', background: 'transparent', color: '#f8fafc', fontSize: '0.9rem' }}>
+                    <Download size={16} /> Guardar PDF en teléfono
+                  </button>
+                  <button type="button" onClick={() => { setShowExportMenu(false); shareExcelWhatsApp(); }} className="btn-secondary" style={{ width: '100%', justifyContent: 'flex-start', padding: '0.75rem 1rem', gap: '0.6rem', border: 'none', background: 'transparent', color: '#f8fafc', fontSize: '0.9rem' }}>
+                    <Download size={16} /> Excel por WhatsApp
+                  </button>
+                  <button type="button" onClick={() => { setShowExportMenu(false); saveExcelToPhone(); }} className="btn-secondary" style={{ width: '100%', justifyContent: 'flex-start', padding: '0.75rem 1rem', gap: '0.6rem', border: 'none', background: 'transparent', color: '#f8fafc', fontSize: '0.9rem' }}>
+                    <Download size={16} /> Guardar Excel en teléfono
                   </button>
                 </div>
               )}
