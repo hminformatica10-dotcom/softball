@@ -350,7 +350,7 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
         const savedFile = await Filesystem.writeFile({ 
           path: fileName, 
           data: base64PDF, 
-          directory: Directory.Documents 
+          directory: Directory.Cache 
         });
         await Share.share({ title: 'Reporte Contable', url: savedFile.uri });
       } else {
@@ -382,7 +382,7 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
       const fileName = `Reporte_${config.teamName}.xlsx`;
       if (Capacitor.isNativePlatform()) {
         const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'base64' });
-        const savedFile = await Filesystem.writeFile({ path: fileName, data: buffer, directory: Directory.Documents });
+        const savedFile = await Filesystem.writeFile({ path: fileName, data: buffer, directory: Directory.Cache });
         await Share.share({ title: 'Reporte Excel', url: savedFile.uri });
       } else XLSX.writeFile(workbook, fileName);
     } catch (err: any) { alert("Error Excel: " + err.message); }
