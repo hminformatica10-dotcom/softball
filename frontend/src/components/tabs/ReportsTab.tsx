@@ -345,44 +345,83 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
 
   const sharePDFWhatsApp = async () => {
     try {
+      console.log('[EXPORT] Starting PDF WhatsApp export...');
       const doc = await generatePDF();
       const fileName = `Reporte_${config.teamName}_${new Date().toISOString().split('T')[0]}.pdf`.replace(/\s+/g, '_');
       
       if (Capacitor.isNativePlatform()) {
+        console.log('[EXPORT] Native platform detected, writing PDF file:', fileName);
         const base64PDF = doc.output('datauristring').split(',')[1];
+        console.log('[EXPORT] Base64 PDF created, length:', base64PDF?.length);
+        
         const savedFile = await Filesystem.writeFile({ 
           path: fileName, 
           data: base64PDF, 
           directory: Directory.Cache 
         });
-        await Share.share({ title: 'Reporte Contable', url: savedFile.uri });
+        console.log('[EXPORT] File saved successfully:', savedFile);
+        
+        const fileUri = savedFile?.uri || `file://${fileName}`;
+        console.log('[EXPORT] Using URI for share:', fileUri);
+        
+        await Share.share({ 
+          title: 'Reporte Contable', 
+          text: 'Adjunto reporte PDF financiero del equipo',
+          url: fileUri,
+          dialogTitle: 'Compartir PDF'
+        });
+        console.log('[EXPORT] Share completed successfully');
       } else {
+        console.log('[EXPORT] Web platform, saving with jsPDF');
         doc.save(fileName);
       }
-    } catch (err: any) { alert("Error al compartir PDF: " + err.message); }
+    } catch (err: any) { 
+      console.error('[EXPORT] Error:', err);
+      alert("Error al compartir PDF: " + err.message); 
+    }
   };
 
   const savePDFToPhone = async () => {
     try {
+      console.log('[EXPORT] Starting PDF save to phone...');
       const doc = await generatePDF();
       const fileName = `Reporte_${config.teamName}_${new Date().toISOString().split('T')[0]}.pdf`.replace(/\s+/g, '_');
       
       if (Capacitor.isNativePlatform()) {
+        console.log('[EXPORT] Native platform detected, writing PDF file:', fileName);
         const base64PDF = doc.output('datauristring').split(',')[1];
+        console.log('[EXPORT] Base64 PDF created, length:', base64PDF?.length);
+        
         const savedFile = await Filesystem.writeFile({ 
           path: fileName, 
           data: base64PDF, 
           directory: Directory.Cache 
         });
-        await Share.share({ title: 'Guardar Reporte PDF', url: savedFile.uri, dialogTitle: 'Selecciona dónde guardar' });
+        console.log('[EXPORT] File saved successfully:', savedFile);
+        
+        const fileUri = savedFile?.uri || `file://${fileName}`;
+        console.log('[EXPORT] Using URI for share:', fileUri);
+        
+        await Share.share({ 
+          title: 'Guardar Reporte PDF', 
+          text: 'Adjunto reporte PDF financiero',
+          url: fileUri, 
+          dialogTitle: 'Selecciona dónde guardar' 
+        });
+        console.log('[EXPORT] Share dialog completed');
       } else {
+        console.log('[EXPORT] Web platform, saving with jsPDF');
         doc.save(fileName);
       }
-    } catch (err: any) { alert("Error al guardar PDF: " + err.message); }
+    } catch (err: any) { 
+      console.error('[EXPORT] Error:', err);
+      alert("Error al guardar PDF: " + err.message); 
+    }
   };
 
   const shareExcelWhatsApp = async () => {
     try {
+      console.log('[EXPORT] Starting Excel WhatsApp export...');
       const dataToExport = combinedTransactions.map(tx => {
         let conceptText = tx.title;
         if (tx.conceptId) {
@@ -402,16 +441,42 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Finanzas");
       const fileName = `Reporte_${config.teamName}.xlsx`;
+      
       if (Capacitor.isNativePlatform()) {
+        console.log('[EXPORT] Native platform detected, creating Excel file:', fileName);
         const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'base64' });
-        const savedFile = await Filesystem.writeFile({ path: fileName, data: buffer, directory: Directory.Cache });
-        await Share.share({ title: 'Reporte Excel', url: savedFile.uri });
-      } else XLSX.writeFile(workbook, fileName);
-    } catch (err: any) { alert("Error al compartir Excel: " + err.message); }
+        console.log('[EXPORT] Excel buffer created, length:', buffer?.length);
+        
+        const savedFile = await Filesystem.writeFile({ 
+          path: fileName, 
+          data: buffer, 
+          directory: Directory.Cache 
+        });
+        console.log('[EXPORT] File saved successfully:', savedFile);
+        
+        const fileUri = savedFile?.uri || `file://${fileName}`;
+        console.log('[EXPORT] Using URI for share:', fileUri);
+        
+        await Share.share({ 
+          title: 'Reporte Excel', 
+          text: 'Adjunto reporte Excel financiero del equipo',
+          url: fileUri,
+          dialogTitle: 'Compartir Excel'
+        });
+        console.log('[EXPORT] Share completed successfully');
+      } else {
+        console.log('[EXPORT] Web platform, saving with XLSX');
+        XLSX.writeFile(workbook, fileName);
+      }
+    } catch (err: any) { 
+      console.error('[EXPORT] Error:', err);
+      alert("Error al compartir Excel: " + err.message); 
+    }
   };
 
   const saveExcelToPhone = async () => {
     try {
+      console.log('[EXPORT] Starting Excel save to phone...');
       const dataToExport = combinedTransactions.map(tx => {
         let conceptText = tx.title;
         if (tx.conceptId) {
@@ -431,37 +496,80 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Finanzas");
       const fileName = `Reporte_${config.teamName}.xlsx`;
+      
       if (Capacitor.isNativePlatform()) {
+        console.log('[EXPORT] Native platform detected, creating Excel file:', fileName);
         const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'base64' });
-        const savedFile = await Filesystem.writeFile({ path: fileName, data: buffer, directory: Directory.Cache });
-        await Share.share({ title: 'Guardar Reporte Excel', url: savedFile.uri, dialogTitle: 'Selecciona dónde guardar' });
+        console.log('[EXPORT] Excel buffer created, length:', buffer?.length);
+        
+        const savedFile = await Filesystem.writeFile({ 
+          path: fileName, 
+          data: buffer, 
+          directory: Directory.Cache 
+        });
+        console.log('[EXPORT] File saved successfully:', savedFile);
+        
+        const fileUri = savedFile?.uri || `file://${fileName}`;
+        console.log('[EXPORT] Using URI for share:', fileUri);
+        
+        await Share.share({ 
+          title: 'Guardar Reporte Excel', 
+          text: 'Adjunto reporte Excel financiero',
+          url: fileUri, 
+          dialogTitle: 'Selecciona dónde guardar' 
+        });
+        console.log('[EXPORT] Share dialog completed');
       } else {
+        console.log('[EXPORT] Web platform, saving with XLSX');
         XLSX.writeFile(workbook, fileName);
       }
-    } catch (err: any) { alert("Error al guardar Excel: " + err.message); }
+    } catch (err: any) { 
+      console.error('[EXPORT] Error:', err);
+      alert("Error al guardar Excel: " + err.message); 
+    }
   };
 
   const exportToPDF = async () => {
     try {
+      console.log('[EXPORT] Starting direct PDF export...');
       const doc = await generatePDF();
       const fileName = `Reporte_${config.teamName}_${new Date().toISOString().split('T')[0]}.pdf`.replace(/\s+/g, '_');
       
       if (Capacitor.isNativePlatform()) {
+        console.log('[EXPORT] Native platform detected, writing PDF file:', fileName);
         const base64PDF = doc.output('datauristring').split(',')[1];
+        console.log('[EXPORT] Base64 PDF created, length:', base64PDF?.length);
+        
         const savedFile = await Filesystem.writeFile({ 
           path: fileName, 
           data: base64PDF, 
           directory: Directory.Cache 
         });
-        await Share.share({ title: 'Reporte Contable', url: savedFile.uri });
+        console.log('[EXPORT] File saved successfully:', savedFile);
+        
+        const fileUri = savedFile?.uri || `file://${fileName}`;
+        console.log('[EXPORT] Using URI for share:', fileUri);
+        
+        await Share.share({ 
+          title: 'Reporte Contable', 
+          text: 'Adjunto reporte PDF financiero del equipo',
+          url: fileUri,
+          dialogTitle: 'Exportar PDF'
+        });
+        console.log('[EXPORT] Share completed successfully');
       } else {
+        console.log('[EXPORT] Web platform, saving with jsPDF');
         doc.save(fileName);
       }
-    } catch (err: any) { alert("Error al generar PDF: " + err.message); }
+    } catch (err: any) { 
+      console.error('[EXPORT] Error:', err);
+      alert("Error al generar PDF: " + err.message); 
+    }
   };
 
   const exportToExcel = async () => {
     try {
+      console.log('[EXPORT] Starting direct Excel export...');
       const dataToExport = combinedTransactions.map(tx => {
         let conceptText = tx.title;
         if (tx.conceptId) {
@@ -481,12 +589,37 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Finanzas");
       const fileName = `Reporte_${config.teamName}.xlsx`;
+      
       if (Capacitor.isNativePlatform()) {
+        console.log('[EXPORT] Native platform detected, creating Excel file:', fileName);
         const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'base64' });
-        const savedFile = await Filesystem.writeFile({ path: fileName, data: buffer, directory: Directory.Cache });
-        await Share.share({ title: 'Reporte Excel', url: savedFile.uri });
-      } else XLSX.writeFile(workbook, fileName);
-    } catch (err: any) { alert("Error Excel: " + err.message); }
+        console.log('[EXPORT] Excel buffer created, length:', buffer?.length);
+        
+        const savedFile = await Filesystem.writeFile({ 
+          path: fileName, 
+          data: buffer, 
+          directory: Directory.Cache 
+        });
+        console.log('[EXPORT] File saved successfully:', savedFile);
+        
+        const fileUri = savedFile?.uri || `file://${fileName}`;
+        console.log('[EXPORT] Using URI for share:', fileUri);
+        
+        await Share.share({ 
+          title: 'Reporte Excel', 
+          text: 'Adjunto reporte Excel financiero del equipo',
+          url: fileUri,
+          dialogTitle: 'Exportar Excel'
+        });
+        console.log('[EXPORT] Share completed successfully');
+      } else {
+        console.log('[EXPORT] Web platform, saving with XLSX');
+        XLSX.writeFile(workbook, fileName);
+      }
+    } catch (err: any) { 
+      console.error('[EXPORT] Error:', err);
+      alert("Error Excel: " + err.message); 
+    }
   };
 
   const hasActiveFilters = reportPlayerFilter !== '' || startDate !== '' || endDate !== '' || reportType !== 'Todos' || (reportSpecificDate !== '' && reportSpecificDate !== undefined);
