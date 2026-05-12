@@ -274,7 +274,7 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
         doc.setFontSize(14);
         doc.text(`Detalle de Ingresos (${incomes.length})`, 15, currentY);
         
-        autoTable(doc, {
+        const result = autoTable(doc, {
           startY: currentY + 4,
           head: [["Fecha", "Jugador", "Concepto", "Monto"]],
           body: incomes.map(tx => {
@@ -289,7 +289,7 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
           alternateRowStyles: { fillColor: [250, 250, 250] },
           margin: { left: 15, right: 15 }
         });
-        currentY = (doc as any).lastAutoTable.finalY + 15;
+        currentY = result.finalY + 15;
       }
 
       // 2. EXPENSE TABLE
@@ -302,7 +302,7 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
         doc.setFontSize(14);
         doc.text(`Detalle de Gastos (${transExpenses.length})`, 15, currentY);
         
-        autoTable(doc, {
+        const result = autoTable(doc, {
           startY: currentY + 4,
           head: [["Fecha", "Categoría", "Descripción", "Monto"]],
           body: transExpenses.map(tx => [formatDate(tx.eventDate), tx.title, tx.description, formatCurrency(tx.amount)]),
@@ -310,7 +310,7 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
           alternateRowStyles: { fillColor: [250, 250, 250] },
           margin: { left: 15, right: 15 }
         });
-        currentY = (doc as any).lastAutoTable.finalY + 15;
+        currentY = result.finalY + 15;
       }
 
       // 3. DEBTS TABLE (If any in filter)
