@@ -84,7 +84,7 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
             />
           </div>
 
-          <div className="selection-grid">
+          <div className="selection-grid" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             {displayedGames.map(g => {
               const isActive = paymentControlGameId === g.id;
               return (
@@ -93,6 +93,7 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
                   className={`selection-card ${isActive ? 'active' : ''}`}
                   onClick={() => setPaymentControlGameId(g.id)}
                   style={{ 
+                    width: '100%',
                     cursor: 'pointer',
                     background: isActive ? `${config.primaryColor}15` : 'rgba(255,255,255,0.03)',
                     border: isActive ? `1px solid ${config.primaryColor}` : '1px solid rgba(255,255,255,0.05)',
