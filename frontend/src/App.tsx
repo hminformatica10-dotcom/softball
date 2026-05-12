@@ -142,6 +142,8 @@ const genericBrowserUser = {
   aud: 'softball_report'
 };
 
+const DEBUG_SHA1 = '91:31:36:9D:40:2C:A8:D5:2D:F1:57:1E:01:29:97:69:FF:72:A0:39';
+const RELEASE_SHA1 = 'BF:AA:96:41:D1:44:E3:9D:7B:CC:D3:96:9B:D8:98:B9:BF:27:A8:DE';
 
 function App() {
   const [apiUrl, setApiUrl] = useState(() => {
@@ -209,6 +211,8 @@ function App() {
 
   const [user, setUser] = useState<any>(null); // Auth State
   const [activeTab, setActiveTab] = useState('Inicio');
+  const [googleAuthFailed, setGoogleAuthFailed] = useState(false);
+  const [googleAuthErrorMsg, setGoogleAuthErrorMsg] = useState('');
 
   const [players, setPlayers] = useState<Player[]>([]);
   const [loadingPlayers, setLoadingPlayers] = useState(true);
@@ -749,6 +753,9 @@ function App() {
 
 
   const handleNativeLogin = async () => {
+    setGoogleAuthFailed(false);
+    setGoogleAuthErrorMsg('');
+
     if (isWebBrowser) {
       console.log('App: Navegador detectado, usando usuario genérico en lugar de Google Auth');
       setUser(genericBrowserUser);
@@ -795,7 +802,30 @@ function App() {
       }
     } catch (err: any) {
       console.error('Google Native Login Failed:', err);
-      alert('Error Google Auth: ' + (err.message || JSON.stringify(err)) + '\n\nSi ves "Something went wrong", significa que falta registrar el SHA-1 de la APK en Google Cloud.');
+      const message = err.message || JSON.stringify(err);
+      setGoogleAuthFailed(true);
+      setGoogleAuthErrorMsg(message);
+      alert(
+        'Error Google Auth: ' + message + '\n\n' +
+        'Registra los SHA-1 correctos para el paquete com.zeratyx.softball en Google Cloud.\n' +
+        'SHA-1 debug: ' + DEBUG_SHA1 + '\n' +
+        'SHA-1 release: ' + RELEASE_SHA1 + '\n\n' +
+        'Si quieres continuar sin Google Auth, usa el botón alternativo disponible después del fallo.'
+      );
+    }
+  };
+
+  const handleNativeLoginFallback = async () => {
+    setUser(genericBrowserUser);
+    localStorage.setItem('softball_user', JSON.stringify(genericBrowserUser));
+
+    if (localStorage.getItem('softball_admin_recovery') === 'true') {
+      setIsRecoveryMode(true);
+      setIsSettingsOpen(true);
+    }
+
+    if (isOnline) {
+      setTimeout(() => processSyncQueue(), 500);
     }
   };
 
@@ -1617,6 +1647,33 @@ function App() {
             {isWebBrowser ? 'Entrar como usuario genérico' : 'Entrar con Google'}
           </button>
 
+          {googleAuthFailed && !isWebBrowser && (
+            <>
+              <button
+                onClick={handleNativeLoginFallback}
+                className="btn-secondary"
+                style={{
+                  marginTop: '1rem',
+                  width: '100%',
+                  background: 'rgba(255,255,255,0.08)',
+                  color: '#f8fafc',
+                  border: '1px solid rgba(255,255,255,0.12)',
+                  padding: '0.95rem 1.25rem',
+                  borderRadius: '14px',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                Entrar sin Google (temporal)
+              </button>
+              {googleAuthErrorMsg && (
+                <p style={{ color: '#f87171', marginTop: '0.75rem', fontSize: '0.9rem', textAlign: 'center' }}>
+                  Detalles: {googleAuthErrorMsg}
+                </p>
+              )}
+            </>
+          )}
 
           <div style={{ marginTop: '2rem', paddingTop: '1.5rem', borderTop: '1px solid rgba(255,255,255,0.05)', width: '100%' }}>
             <p style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
