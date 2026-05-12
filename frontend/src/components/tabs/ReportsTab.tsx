@@ -369,15 +369,14 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
       
       if (Capacitor.isNativePlatform()) {
         const base64PDF = doc.output('datauristring').split(',')[1];
-        await Filesystem.writeFile({ 
+        const savedFile = await Filesystem.writeFile({ 
           path: fileName, 
           data: base64PDF, 
-          directory: Directory.Documents 
+          directory: Directory.Cache 
         });
-        alert(`PDF guardado en Documentos: ${fileName}`);
+        await Share.share({ title: 'Guardar Reporte PDF', url: savedFile.uri, dialogTitle: 'Selecciona dónde guardar' });
       } else {
         doc.save(fileName);
-        alert(`PDF descargado: ${fileName}`);
       }
     } catch (err: any) { alert("Error al guardar PDF: " + err.message); }
   };
@@ -434,11 +433,10 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
       const fileName = `Reporte_${config.teamName}.xlsx`;
       if (Capacitor.isNativePlatform()) {
         const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'base64' });
-        await Filesystem.writeFile({ path: fileName, data: buffer, directory: Directory.Documents });
-        alert(`Excel guardado en Documentos: ${fileName}`);
+        const savedFile = await Filesystem.writeFile({ path: fileName, data: buffer, directory: Directory.Cache });
+        await Share.share({ title: 'Guardar Reporte Excel', url: savedFile.uri, dialogTitle: 'Selecciona dónde guardar' });
       } else {
         XLSX.writeFile(workbook, fileName);
-        alert(`Excel descargado: ${fileName}`);
       }
     } catch (err: any) { alert("Error al guardar Excel: " + err.message); }
   };
