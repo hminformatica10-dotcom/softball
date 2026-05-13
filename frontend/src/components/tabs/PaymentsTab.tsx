@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { DollarSign, Activity, Trash2, PlusCircle, LayoutGrid, User, Layers, ArrowLeft, CheckCircle2, Edit2, X, Lock } from 'lucide-react';
+import { DollarSign, Activity, Trash2, PlusCircle, LayoutGrid, User, Layers, ArrowLeft, CheckCircle2, Edit2, X, Lock, Eye, EyeOff } from 'lucide-react';
 import { t } from '../../translations';
 import { isOlderThan24h } from '../../utils';
 import type { Player, Payment, AppConfig, PaymentConcept } from '../../types';
