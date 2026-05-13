@@ -1113,7 +1113,7 @@ function App() {
   const fetchGames = () => fetchData(`${apiUrl}/api/games`, `softball_games_${activeTeamId}`, setGames, setLoadingGames);
   const fetchPaymentConcepts = () => fetchData(`${apiUrl}/api/payment-concepts`, `softball_concepts_${activeTeamId}`, setPaymentConcepts, setLoadingConcepts);
 
-  const mutateData = async (url: string, method: string, payload: any, setList: any, cacheKey: string, successCallback: any) => {
+  const mutateData = async (url: string, method: string, payload: any, setList: any, cacheKey: string, successCallback: any): Promise<boolean> => {
     const handleOptimisticUpdate = (tempId: string) => {
       setList((prev: any[]) => {
         let optimisticList;
@@ -1137,7 +1137,7 @@ function App() {
       handleOptimisticUpdate(tempId);
       saveToQueueAndStorage({ url: actionUrl, method, body: method === 'DELETE' ? null : payload, teamId: activeTeamId });
       successCallback(true);
-      return;
+      return true;
     }
 
     try {
@@ -1173,12 +1173,14 @@ function App() {
           }, 0);
         }
         successCallback(true);
+        return true;
       } else {
         console.warn('App: mutateData - Error de API, guardando en cola:', res.status);
         if (res.status >= 500) throw new Error('Server Error');
         const errorText = await res.text();
         console.error('API Error Response:', res.status, errorText);
         successCallback(false);
+        return false;
       }
     } catch (err: any) {
       console.warn('App: mutateData - Error de red, guardando en cola:', err.message);
@@ -1187,6 +1189,7 @@ function App() {
       handleOptimisticUpdate(tempId);
       saveToQueueAndStorage({ url: actionUrl, method, body: method === 'DELETE' ? null : payload, teamId: activeTeamId });
       successCallback(true);
+      return true;
     }
   };
 
@@ -1316,6 +1319,40 @@ function App() {
     });
   };
 
+  const handleDeletePaymentsByDate = async (date: string, password: string): Promise<void> => {
+    if (!password || password !== config.adminPassword) {
+      throw new Error('Contraseña incorrecta');
+    }
+
+    const normalizedDate = getYYYYMMDD(date);
+    if (!normalizedDate) {
+      throw new Error('Fecha inválida');
+    }
+
+    const paymentsToDelete = payments.filter(payment => getYYYYMMDD(payment.eventDate) === normalizedDate);
+    if (paymentsToDelete.length === 0) {
+      return;
+    }
+
+    for (const payment of paymentsToDelete) {
+      const deleted = await mutateData(PAYMENT_API_URL, 'DELETE', payment.id, setPayments, `softball_payments_${activeTeamId}`, () => { });
+      if (!deleted) {
+        throw new Error('No se pudieron eliminar todos los pagos. Intenta de nuevo.');
+      }
+    }
+  };
+
+  const handleDeletePayment = async (paymentId: string, password: string): Promise<void> => {
+    if (!password || password !== config.adminPassword) {
+      throw new Error('Contraseña incorrecta');
+    }
+
+    const deleted = await mutateData(PAYMENT_API_URL, 'DELETE', paymentId, setPayments, `softball_payments_${activeTeamId}`, () => { });
+    if (!deleted) {
+      throw new Error('No se pudo eliminar el pago. Intenta de nuevo.');
+    }
+  };
+
   const handleConceptSubmit = (name: string, amount: number) => {
     if (!name || !amount) return;
     const payload = { name, totalAmount: amount };
@@ -1326,7 +1363,7 @@ function App() {
     mutateData(CONCEPT_API_URL, 'DELETE', id, setPaymentConcepts, `softball_concepts_${activeTeamId}`, () => { });
   };
 
-  const handleExpenseSubmit = (e: React.FormEvent) => {
+  const handleExpenseSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!expenseFormData.amount || !expenseFormData.description) return;
 
@@ -1340,9 +1377,34 @@ function App() {
       eventDate: normalizeDate(expenseFormData.eventDate || getTodayString())
     };
 
-    mutateData(EXPENSE_API_URL, 'POST', payload, setExpenses, `softball_expenses_${activeTeamId}`, (success: boolean) => {
+    const success = await mutateData(EXPENSE_API_URL, 'POST', payload, setExpenses, `softball_expenses_${activeTeamId}`, (success: boolean) => {
       if (success) setExpenseFormData({ ...expenseFormData, amount: '', description: '', receipt: '', otherCategory: '', eventDate: getTodayString() });
     });
+
+    return success;
+  };
+
+  const handleDeleteExpensesByDate = async (date: string, password: string): Promise<void> => {
+    if (!password || password !== config.adminPassword) {
+      throw new Error('Contraseña incorrecta');
+    }
+
+    const normalizedDate = getYYYYMMDD(date);
+    if (!normalizedDate) {
+      throw new Error('Fecha inválida');
+    }
+
+    const expensesToDelete = expenses.filter(expense => getYYYYMMDD(expense.eventDate) === normalizedDate);
+    if (expensesToDelete.length === 0) {
+      return;
+    }
+
+    for (const expense of expensesToDelete) {
+      const deleted = await mutateData(EXPENSE_API_URL, 'DELETE', expense.id, setExpenses, `softball_expenses_${activeTeamId}`, () => { });
+      if (!deleted) {
+        throw new Error('No se pudieron eliminar todos los gastos. Intenta de nuevo.');
+      }
+    }
   };
 
   const handleGameSubmit = (e: React.FormEvent) => {
@@ -2484,6 +2546,7 @@ function App() {
             expenses={expenses}
             formatCurrency={formatCurrency}
             openEditModal={openEditModal}
+            onDeleteExpensesByDate={handleDeleteExpensesByDate}
           />
         );
       case 'Inicio':
@@ -2513,6 +2576,8 @@ function App() {
             deleteConcept={deleteConcept}
             formatCurrency={formatCurrency}
             openEditModal={openEditModal}
+            onDeletePaymentsByDate={handleDeletePaymentsByDate}
+            onDeletePayment={handleDeletePayment}
           />
         );
       case 'Asistencia':

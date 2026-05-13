@@ -1,4 +1,4 @@
-import { CreditCard, Camera, X, Edit2, Lock, Activity } from 'lucide-react';
+import { CreditCard, Camera, X, Edit2, Lock, Activity, Trash2 } from 'lucide-react';
 import { t } from '../../translations';
 import { isOlderThan24h } from '../../utils';
 import type { AppConfig, Expense } from '../../types';
@@ -14,6 +14,7 @@ interface ExpensesTabProps {
   expenses?: Expense[];
   formatCurrency?: (val: number) => string;
   openEditModal?: (type: string, data: any) => void;
+  onDeleteExpensesByDate?: (date: string, password: string) => Promise<void>;
 }
 
 export const ExpensesTab: React.FC<ExpensesTabProps> = ({
@@ -25,9 +26,44 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({
   setViewingReceipt,
   expenses = [],
   formatCurrency = (val) => `$${val.toFixed(2)}`,
-  openEditModal
+  openEditModal,
+  onDeleteExpensesByDate
 }) => {
   const [dateFilter, setDateFilter] = useState('');
+  const [deleteByDateModal, setDeleteByDateModal] = useState({ isOpen: false, date: '', loading: false });
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteError, setDeleteError] = useState('');
+  const [showDeletePassword, setShowDeletePassword] = useState(false);
+
+  const handleDeleteByDate = async () => {
+    if (!deletePassword) {
+      setDeleteError('Ingresa la contraseña');
+      return;
+    }
+    
+    try {
+      setDeleteByDateModal({ ...deleteByDateModal, loading: true });
+      await onDeleteExpensesByDate?.(deleteByDateModal.date, deletePassword);
+      
+      // Limpiar y cerrar
+      setDeleteByDateModal({ isOpen: false, date: '', loading: false });
+      setDeletePassword('');
+      setDeleteError('');
+      setShowDeletePassword(false);
+    } catch (err: any) {
+      setDeleteError(err.message || 'Error al eliminar gastos');
+    } finally {
+      setDeleteByDateModal(prev => ({ ...prev, loading: false }));
+    }
+  };
+
+  const openDeleteByDateModal = (date: string) => {
+    setDeleteByDateModal({ isOpen: true, date, loading: false });
+    setDeletePassword('');
+    setDeleteError('');
+    setShowDeletePassword(false);
+  };
+
   const handlePhotoCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -116,13 +152,37 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({
         
         <div className="form-group" style={{ marginBottom: '1rem' }}>
           <label className="form-label">{t('Filtrar por Fecha', config.language)}</label>
-          <input 
-            type="date" 
-            className="input-field" 
-            value={dateFilter} 
-            onChange={e => setDateFilter(e.target.value)} 
-            style={{ colorScheme: 'dark' }} 
-          />
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            <input 
+              type="date" 
+              className="input-field" 
+              value={dateFilter} 
+              onChange={e => setDateFilter(e.target.value)} 
+              style={{ colorScheme: 'dark', flex: 1 }} 
+            />
+            {dateFilter && (
+              <button
+                type="button"
+                onClick={() => openDeleteByDateModal(dateFilter)}
+                className="btn-icon"
+                title="Eliminar todos los gastos de esta fecha"
+                style={{
+                  padding: '0.75rem',
+                  background: 'rgba(239, 68, 68, 0.1)',
+                  border: '1px solid rgba(239, 68, 68, 0.2)',
+                  borderRadius: '12px',
+                  color: '#ef4444',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                <Trash2 size={16} /> Eliminar todo
+              </button>
+            )}
+          </div>
         </div>
         
         {(() => {
@@ -167,6 +227,73 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({
           );
         })()}
       </div>
+
+      {deleteByDateModal.isOpen && (
+        <div className="modal-overlay" style={{ zIndex: 2000 }}>
+          <div className="modal-content" style={{ maxWidth: '400px', border: `1px solid #ef444430` }}>
+            <div className="modal-header" style={{ borderBottom: 'none', paddingBottom: 0 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', gap: '0.5rem' }}>
+                <div style={{ background: 'rgba(239, 68, 68, 0.15)', padding: '1rem', borderRadius: '50%' }}>
+                  <Trash2 size={32} color="#ef4444" />
+                </div>
+                <h3 className="modal-title" style={{ textAlign: 'center', color: '#ef4444' }}>Eliminar Todos los Gastos</h3>
+                <p style={{ color: '#94a3b8', fontSize: '0.85rem', textAlign: 'center', margin: 0 }}>
+                  Se eliminarán <b>{expenses.filter(e => e.eventDate.includes(deleteByDateModal.date)).length}</b> gasto(s) del {new Date(deleteByDateModal.date).toLocaleDateString(config.language === 'es' ? 'es-ES' : 'en-US')}
+                </p>
+              </div>
+            </div>
+            <div className="modal-body" style={{ paddingTop: '1.5rem' }}>
+              <p style={{ color: '#f8fafc', marginBottom: '1rem', textAlign: 'center', fontWeight: 'bold' }}>Introduce tu contraseña para confirmar</p>
+              <div className="form-group">
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type={showDeletePassword ? "text" : "password"}
+                    className="input-field"
+                    value={deletePassword}
+                    onChange={e => { setDeletePassword(e.target.value); setDeleteError(''); }}
+                    placeholder="Contraseña"
+                    autoFocus
+                    disabled={deleteByDateModal.loading}
+                    style={{ textAlign: 'center', fontSize: '1.1rem', letterSpacing: deletePassword && !showDeletePassword ? '4px' : 'normal' }}
+                  />
+                  <button 
+                    type="button" 
+                    onClick={() => setShowDeletePassword(!showDeletePassword)} 
+                    disabled={deleteByDateModal.loading}
+                    style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#94a3b8', cursor: deleteByDateModal.loading ? 'not-allowed' : 'pointer', opacity: deleteByDateModal.loading ? 0.5 : 1 }}
+                  >
+                    {showDeletePassword ? '👁️' : '👁️‍🗨️'}
+                  </button>
+                </div>
+                {deleteError && <p style={{ color: '#ef4444', fontSize: '0.8rem', textAlign: 'center', marginTop: '0.5rem', fontWeight: 'bold' }}>{deleteError}</p>}
+              </div>
+              <button
+                className="btn-primary"
+                disabled={deleteByDateModal.loading}
+                style={{ background: deleteByDateModal.loading ? '#ef4444' + '80' : '#ef4444', width: '100%', marginTop: '0.5rem', opacity: deleteByDateModal.loading ? 0.7 : 1 }}
+                onClick={handleDeleteByDate}
+              >
+                {deleteByDateModal.loading ? 'Eliminando...' : 'Confirmar Eliminación'}
+              </button>
+            </div>
+            <div className="modal-footer" style={{ borderTop: 'none', justifyContent: 'center' }}>
+              <button 
+                className="btn-secondary" 
+                style={{ border: 'none' }} 
+                disabled={deleteByDateModal.loading}
+                onClick={() => {
+                  setDeleteByDateModal({ isOpen: false, date: '', loading: false });
+                  setDeletePassword('');
+                  setDeleteError('');
+                  setShowDeletePassword(false);
+                }}
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

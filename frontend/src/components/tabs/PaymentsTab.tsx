@@ -19,6 +19,8 @@ interface PaymentsTabProps {
   handleConceptSubmit: (name: string, amount: number) => void;
   deleteConcept: (id: string) => void;
   openEditModal?: (type: string, data: any) => void;
+  onDeletePaymentsByDate?: (date: string, password: string) => Promise<void>;
+  onDeletePayment?: (paymentId: string, password: string) => Promise<void>;
 }
 
 export const PaymentsTab: React.FC<PaymentsTabProps> = ({
@@ -34,7 +36,9 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
   loadingConcepts,
   handleConceptSubmit,
   deleteConcept,
-  openEditModal
+  openEditModal,
+  onDeletePaymentsByDate,
+  onDeletePayment
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'individual' | 'conceptos'>('individual');
   const [selectedConcept, setSelectedConcept] = useState<PaymentConcept | null>(null);
@@ -43,6 +47,11 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
   const [addingAbonoFor, setAddingAbonoFor] = useState<string | null>(null);
   const [abonoAmount, setAbonoAmount] = useState('');
   const [dateFilter, setDateFilter] = useState('');
+  const [deleteByDateModal, setDeleteByDateModal] = useState({ isOpen: false, date: '', loading: false });
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteError, setDeleteError] = useState('');
+  const [showDeletePassword, setShowDeletePassword] = useState(false);
+  const [deletePaymentModal, setDeletePaymentModal] = useState<{ isOpen: boolean, payment: Payment | null, loading: false }>({ isOpen: false, payment: null, loading: false });
 
   const onCreateConcept = (e: React.FormEvent) => {
     e.preventDefault();
@@ -176,13 +185,37 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
           
           <div className="form-group" style={{ marginBottom: '1rem' }}>
             <label className="form-label">{t('Filtrar por Fecha', config.language)}</label>
-            <input 
-              type="date" 
-              className="input-field" 
-              value={dateFilter} 
-              onChange={e => setDateFilter(e.target.value)} 
-              style={{ colorScheme: 'dark' }} 
-            />
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <input 
+                type="date" 
+                className="input-field" 
+                value={dateFilter} 
+                onChange={e => setDateFilter(e.target.value)} 
+                style={{ colorScheme: 'dark', flex: 1 }} 
+              />
+              {dateFilter && (
+                <button
+                  type="button"
+                  onClick={() => setDeleteByDateModal({ isOpen: true, date: dateFilter, loading: false })}
+                  className="btn-icon"
+                  title="Eliminar todos los pagos de esta fecha"
+                  style={{
+                    padding: '0.75rem',
+                    background: 'rgba(34, 197, 94, 0.1)',
+                    border: '1px solid rgba(34, 197, 94, 0.2)',
+                    borderRadius: '12px',
+                    color: '#22c55e',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  <Trash2 size={16} /> {t('Eliminar todo', config.language)}
+                </button>
+              )}
+            </div>
           </div>
           
           {recentPayments.length === 0 ? (
@@ -217,6 +250,18 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
                             {isOlderThan24h(payment.registrationDate) ? <Lock size={16} color="#f59e0b" /> : <Edit2 size={16} />}
                           </button>
                         )}
+                        <button 
+                          className="btn-icon" 
+                          onClick={() => setDeletePaymentModal({ isOpen: true, payment, loading: false })}
+                          title="Eliminar pago (requiere contraseña)"
+                          style={{ 
+                            opacity: 1,
+                            cursor: 'pointer',
+                            color: '#ef4444'
+                          }}
+                        >
+                          <Trash2 size={16} />
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -227,6 +272,48 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
         </div>
       </div>
     );
+  };
+
+  const handleDeleteByDate = async () => {
+    if (!deletePassword) {
+      setDeleteError('Ingresa la contraseña');
+      return;
+    }
+
+    try {
+      setDeleteByDateModal({ ...deleteByDateModal, loading: true });
+      await onDeletePaymentsByDate?.(deleteByDateModal.date, deletePassword);
+      setDeleteByDateModal({ isOpen: false, date: '', loading: false });
+      setDeletePassword('');
+      setDeleteError('');
+      setShowDeletePassword(false);
+    } catch (err: any) {
+      setDeleteError(err.message || 'Error al eliminar pagos');
+    } finally {
+      setDeleteByDateModal(prev => ({ ...prev, loading: false }));
+    }
+  };
+
+  const handleDeletePayment = async () => {
+    if (!deletePassword) {
+      setDeleteError('Ingresa la contraseña');
+      return;
+    }
+
+    if (!deletePaymentModal.payment) return;
+
+    try {
+      setDeletePaymentModal({ ...deletePaymentModal, loading: true });
+      await onDeletePayment?.(deletePaymentModal.payment.id, deletePassword);
+      setDeletePaymentModal({ isOpen: false, payment: null, loading: false });
+      setDeletePassword('');
+      setDeleteError('');
+      setShowDeletePassword(false);
+    } catch (err: any) {
+      setDeleteError(err.message || 'Error al eliminar pago');
+    } finally {
+      setDeletePaymentModal(prev => ({ ...prev, loading: false }));
+    }
   };
 
   const renderConceptosDashboard = () => (
@@ -511,6 +598,102 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
             </div>
           )}
         </>
+      )}
+
+      {/* Delete by Date Modal */}
+      {deleteByDateModal.isOpen && (
+        <div className="modal-overlay" style={{ zIndex: 4000 }}>
+          <div className="modal-content" style={{ maxWidth: '380px', border: `1px solid ${config.primaryColor}30` }}>
+            <div className="modal-header" style={{ borderBottom: 'none', paddingBottom: 0 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', gap: '0.5rem' }}>
+                <div style={{ background: `${config.primaryColor}15`, padding: '1rem', borderRadius: '50%' }}>
+                  <Lock size={32} color={config.primaryColor} />
+                </div>
+                <h3 className="modal-title" style={{ textAlign: 'center' }}>Eliminar Pagos por Fecha</h3>
+                <p style={{ color: '#94a3b8', fontSize: '0.85rem', textAlign: 'center', margin: 0 }}>Se eliminarán todos los pagos del {new Date(deleteByDateModal.date).toLocaleDateString(config.language === 'es' ? 'es-ES' : 'en-US')}. Esta acción requiere contraseña administrativa.</p>
+              </div>
+            </div>
+            <div className="modal-body" style={{ paddingTop: '1.5rem' }}>
+              <div className="form-group">
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type={showDeletePassword ? "text" : "password"}
+                    className="input-field"
+                    value={deletePassword}
+                    onChange={e => { setDeletePassword(e.target.value); setDeleteError(''); }}
+                    placeholder="Contraseña administrativa"
+                    autoFocus
+                    style={{ textAlign: 'center', fontSize: '1.1rem', letterSpacing: deletePassword && !showDeletePassword ? '4px' : 'normal' }}
+                  />
+                  <button type="button" onClick={() => setShowDeletePassword(!showDeletePassword)} style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
+                    {showDeletePassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+                {deleteError && <p style={{ color: '#ef4444', fontSize: '0.8rem', textAlign: 'center', marginTop: '0.5rem', fontWeight: 'bold' }}>{deleteError}</p>}
+              </div>
+              <button
+                className="btn-primary"
+                style={{ background: config.primaryColor, width: '100%', marginTop: '0.5rem' }}
+                onClick={handleDeleteByDate}
+                disabled={deleteByDateModal.loading}
+              >
+                {deleteByDateModal.loading ? 'Eliminando...' : 'Confirmar Eliminación'}
+              </button>
+            </div>
+            <div className="modal-footer" style={{ borderTop: 'none', justifyContent: 'center' }}>
+              <button className="btn-secondary" style={{ border: 'none' }} onClick={() => { setDeleteByDateModal({ isOpen: false, date: '', loading: false }); setDeletePassword(''); setDeleteError(''); setShowDeletePassword(false); }}>Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Individual Payment Modal */}
+      {deletePaymentModal.isOpen && deletePaymentModal.payment && (
+        <div className="modal-overlay" style={{ zIndex: 4000 }}>
+          <div className="modal-content" style={{ maxWidth: '380px', border: `1px solid #ef444430` }}>
+            <div className="modal-header" style={{ borderBottom: 'none', paddingBottom: 0 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', gap: '0.5rem' }}>
+                <div style={{ background: '#ef444415', padding: '1rem', borderRadius: '50%' }}>
+                  <Trash2 size={32} color="#ef4444" />
+                </div>
+                <h3 className="modal-title" style={{ textAlign: 'center' }}>Eliminar Pago</h3>
+                <p style={{ color: '#94a3b8', fontSize: '0.85rem', textAlign: 'center', margin: 0 }}>
+                  Se eliminará el pago de {formatCurrency(deletePaymentModal.payment.amount)} de {deletePaymentModal.payment.playerName}. Esta acción requiere contraseña administrativa.
+                </p>
+              </div>
+            </div>
+            <div className="modal-body" style={{ paddingTop: '1.5rem' }}>
+              <div className="form-group">
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type={showDeletePassword ? "text" : "password"}
+                    className="input-field"
+                    value={deletePassword}
+                    onChange={e => { setDeletePassword(e.target.value); setDeleteError(''); }}
+                    placeholder="Contraseña administrativa"
+                    autoFocus
+                    style={{ textAlign: 'center', fontSize: '1.1rem', letterSpacing: deletePassword && !showDeletePassword ? '4px' : 'normal' }}
+                  />
+                  <button type="button" onClick={() => setShowDeletePassword(!showDeletePassword)} style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
+                    {showDeletePassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+                {deleteError && <p style={{ color: '#ef4444', fontSize: '0.8rem', textAlign: 'center', marginTop: '0.5rem', fontWeight: 'bold' }}>{deleteError}</p>}
+              </div>
+              <button
+                className="btn-danger"
+                style={{ width: '100%', marginTop: '0.5rem' }}
+                onClick={handleDeletePayment}
+                disabled={deletePaymentModal.loading}
+              >
+                {deletePaymentModal.loading ? 'Eliminando...' : 'Confirmar Eliminación'}
+              </button>
+            </div>
+            <div className="modal-footer" style={{ borderTop: 'none', justifyContent: 'center' }}>
+              <button className="btn-secondary" style={{ border: 'none' }} onClick={() => { setDeletePaymentModal({ isOpen: false, payment: null, loading: false }); setDeletePassword(''); setDeleteError(''); setShowDeletePassword(false); }}>Cancelar</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
