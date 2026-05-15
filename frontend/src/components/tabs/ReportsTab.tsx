@@ -570,6 +570,15 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
 
       // Guardar archivo temporal
       if (Capacitor.isNativePlatform()) {
+        const fsAvailable = typeof Filesystem !== 'undefined' && typeof Filesystem.writeFile === 'function';
+        const shareAvailable = typeof Share !== 'undefined' && typeof Share.share === 'function';
+        if (!fsAvailable || !shareAvailable) {
+          console.error('[SHARE-NATIVE] Plugins no disponibles:', { fsAvailable, shareAvailable });
+          showMessage('error', '✗ Plugins nativos no disponibles. Usando fallback web.');
+          exportToPDFWeb();
+          return;
+        }
+
         try {
           await Filesystem.writeFile({
             path: fileName,
@@ -579,10 +588,18 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
           });
 
           // Obtener URI del archivo
-          const fileUri = `file://${(await Filesystem.getUri({
+          const uriResult: any = await Filesystem.getUri({
             path: fileName,
             directory: Directory.Cache
-          })).uri}`;
+          });
+          let fileUri = uriResult?.uri || uriResult;
+          if (!fileUri) {
+            throw new Error('URI de archivo inválida');
+          }
+          // Asegurar esquema
+          if (!fileUri.startsWith('file://') && !fileUri.startsWith('content://')) {
+            fileUri = `file://${fileUri}`;
+          }
 
           console.log('[SHARE-NATIVE] Compartiendo archivo:', fileUri);
 
@@ -596,8 +613,8 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
 
           showMessage('success', '✓ Reporte compartido exitosamente');
         } catch (fileError: any) {
-          console.error('[SHARE-NATIVE] Error en operación de archivo:', fileError);
-          // Si hay error con filesystem, intentar con web fallback
+          console.error('[SHARE-NATIVE] Error en operación de archivo o compartir:', fileError);
+          // Si hay error con filesystem o share, intentar con web fallback
           exportToPDFWeb();
         }
       } else {
@@ -606,7 +623,9 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
       }
     } catch (error: any) {
       console.error('[SHARE-NATIVE] Error:', error);
-      showMessage('error', `✗ Error: ${error.message || 'No se pudo compartir el reporte'}`);
+      const msg = error?.message || String(error) || 'No se pudo compartir el reporte';
+      showMessage('error', `✗ Error: ${msg}`);
+      try { alert('[SHARE-NATIVE] ' + msg); } catch(e) { /* ignore */ }
     } finally {
       setIsExporting(false);
     }
@@ -642,7 +661,7 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
             <div style={{ position: 'relative', flex: 1, minWidth: '160px' }}>
               <button 
                 type="button" 
-                onClick={() => shareReportAsNative()}
+                onClick={() => { try { void shareReportAsNative(); } catch(e:any) { console.error('[APP-ERROR] Click handler error', e); showMessage('error', e?.message || String(e)); try { alert('[APP-ERROR] ' + (e?.message || String(e))); } catch(_){} } }}
                 disabled={isExporting}
                 className="btn-primary" 
                 style={{ 
