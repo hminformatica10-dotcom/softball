@@ -8,7 +8,6 @@ import android.os.Environment;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import com.getcapacitor.BridgeActivity;
-import com.getcapacitor.CapacitorBridge;
 
 public class MainActivity extends BridgeActivity {
     private static final int REQUEST_STORAGE_PERMISSIONS = 1001;

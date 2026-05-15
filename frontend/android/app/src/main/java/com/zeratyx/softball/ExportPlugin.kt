@@ -1,8 +1,7 @@
 package com.zeratyx.softball
 
-import android.content.Context
-import android.content.Intent
 import android.net.Uri
+import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import com.getcapacitor.JSObject
@@ -24,14 +23,21 @@ class ExportPlugin : Plugin() {
     private var currentCall: PluginCall? = null
     private var fileData: ByteArray? = null
     private var fileName: String? = null
+    private var createDocumentLauncher: ActivityResultLauncher<String>? = null
 
-    private val createDocumentLauncher = registerForActivityResult(
-        ActivityResultContracts.CreateDocument("*/*")
-    ) { uri: Uri? ->
-        if (uri != null) {
-            saveFileToUri(uri)
-        } else {
-            rejectCall("Cancelado por el usuario")
+    override fun load() {
+        super.load()
+        activity?.activityResultRegistry?.let { registry ->
+            createDocumentLauncher = registry.register(
+                "export-plugin-create-document",
+                ActivityResultContracts.CreateDocument("*/*")
+            ) { uri: Uri? ->
+                if (uri != null) {
+                    saveFileToUri(uri)
+                } else {
+                    rejectCall("Cancelado por el usuario")
+                }
+            }
         }
     }
 
@@ -53,8 +59,7 @@ class ExportPlugin : Plugin() {
             fileData = android.util.Base64.decode(base64Data, android.util.Base64.DEFAULT)
             fileName = suggestedName
 
-            val mimeType = "application/pdf"
-            createDocumentLauncher.launch(suggestedName)
+            createDocumentLauncher?.launch(suggestedName) ?: call.reject("No se puede iniciar el selector de archivos")
 
         } catch (e: Exception) {
             call.reject("Error al iniciar exportación: ${e.message}")
@@ -79,8 +84,7 @@ class ExportPlugin : Plugin() {
             fileData = android.util.Base64.decode(base64Data, android.util.Base64.DEFAULT)
             fileName = suggestedName
 
-            val mimeType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            createDocumentLauncher.launch(suggestedName)
+            createDocumentLauncher?.launch(suggestedName) ?: call.reject("No se puede iniciar el selector de archivos")
 
         } catch (e: Exception) {
             call.reject("Error al iniciar exportación: ${e.message}")
