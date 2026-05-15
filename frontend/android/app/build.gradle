@@ -9,8 +9,8 @@ android {
         applicationId "com.zeratyx.softball"
         minSdkVersion 24
         targetSdkVersion 36
-        versionCode 1
-        versionName "1.0"
+        versionCode 100
+        versionName "1.0.0-build-${System.currentTimeMillis()}"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 

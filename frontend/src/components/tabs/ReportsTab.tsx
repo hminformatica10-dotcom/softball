@@ -1,11 +1,13 @@
 import React from 'react';
-import { Search, Download, BarChart2, TrendingUp, TrendingDown, ClipboardCheck, Sliders, Eye, AlertCircle, CheckCircle, Loader } from 'lucide-react';
+import { Search, Download, BarChart2, TrendingUp, TrendingDown, ClipboardCheck, Sliders, Eye, AlertCircle, CheckCircle, Loader, Share2 } from 'lucide-react';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { Capacitor } from '@capacitor/core';
 import { registerPlugin } from '@capacitor/core';
+import { Share } from '@capacitor/share';
+import { Filesystem, Directory } from '@capacitor/filesystem';
 import type { Plugin } from '@capacitor/core';
 import { t } from '../../translations';
 import type { Payment, Expense, AppConfig } from '../../types';
@@ -64,7 +66,6 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
   setViewingReceipt
 }) => {
   const [activeChart, setActiveChart] = React.useState(chartView);
-  const [showExportMenu, setShowExportMenu] = React.useState(false);
   const [isExporting, setIsExporting] = React.useState(false);
   const [exportMessage, setExportMessage] = React.useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
 
@@ -548,6 +549,69 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
     }
   };
 
+  /**
+   * Compartir PDF usando el dialog nativo de Android
+   */
+  const shareReportAsNative = async () => {
+    try {
+      setIsExporting(true);
+      console.log('[SHARE-NATIVE] Iniciando compartición nativa del reporte...');
+      
+      // Generar PDF
+      const doc = await generatePDF();
+      const base64PDF = doc.output('datauristring').split(',')[1];
+
+      if (!base64PDF) {
+        throw new Error('No se pudo generar el PDF');
+      }
+
+      const fileName = generateFileName('pdf');
+      console.log('[SHARE-NATIVE] Guardando archivo temporal:', fileName);
+
+      // Guardar archivo temporal
+      if (Capacitor.isNativePlatform()) {
+        try {
+          await Filesystem.writeFile({
+            path: fileName,
+            data: base64PDF,
+            directory: Directory.Cache,
+            recursive: true
+          });
+
+          // Obtener URI del archivo
+          const fileUri = `file://${(await Filesystem.getUri({
+            path: fileName,
+            directory: Directory.Cache
+          })).uri}`;
+
+          console.log('[SHARE-NATIVE] Compartiendo archivo:', fileUri);
+
+          // Compartir usando API nativa
+          await Share.share({
+            title: 'Compartir Reporte',
+            text: `Reporte financiero - ${(new Date()).toLocaleDateString()}`,
+            url: fileUri,
+            dialogTitle: 'Compartir reporte financiero'
+          });
+
+          showMessage('success', '✓ Reporte compartido exitosamente');
+        } catch (fileError: any) {
+          console.error('[SHARE-NATIVE] Error en operación de archivo:', fileError);
+          // Si hay error con filesystem, intentar con web fallback
+          exportToPDFWeb();
+        }
+      } else {
+        // Web fallback
+        exportToPDFWeb();
+      }
+    } catch (error: any) {
+      console.error('[SHARE-NATIVE] Error:', error);
+      showMessage('error', `✗ Error: ${error.message || 'No se pudo compartir el reporte'}`);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   // Aliased para compatibilidad con código existente
   const sharePDFWhatsApp = exportPDFModern;
   const savePDFToPhone = exportPDFModern;
@@ -578,7 +642,7 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
             <div style={{ position: 'relative', flex: 1, minWidth: '160px' }}>
               <button 
                 type="button" 
-                onClick={() => setShowExportMenu(prev => !prev)}
+                onClick={() => shareReportAsNative()}
                 disabled={isExporting}
                 className="btn-primary" 
                 style={{ 
@@ -596,24 +660,14 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
               >
                 {isExporting ? (
                   <>
-                    <Loader size={18} className="animate-spin" /> Exportando...
+                    <Loader size={18} className="animate-spin" /> Generando...
                   </>
                 ) : (
                   <>
-                    <Download size={18} /> Exportar
+                    <Share2 size={18} /> Compartir
                   </>
                 )}
               </button>
-              {showExportMenu && !isExporting && (
-                <div style={{ position: 'absolute', top: 'calc(100% + 0.5rem)', right: 0, width: '100%', background: 'rgba(15, 23, 42, 0.98)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '14px', boxShadow: '0 20px 40px rgba(0,0,0,0.25)', zIndex: 1000, overflow: 'hidden' }}>
-                  <button type="button" onClick={() => { setShowExportMenu(false); exportPDFModern(); }} className="btn-secondary" style={{ width: '100%', justifyContent: 'flex-start', padding: '0.75rem 1rem', gap: '0.6rem', border: 'none', background: 'transparent', color: '#f8fafc', fontSize: '0.9rem' }}>
-                    <Download size={16} /> Exportar como PDF
-                  </button>
-                  <button type="button" onClick={() => { setShowExportMenu(false); exportExcelModern(); }} className="btn-secondary" style={{ width: '100%', justifyContent: 'flex-start', padding: '0.75rem 1rem', gap: '0.6rem', border: 'none', background: 'transparent', color: '#f8fafc', fontSize: '0.9rem' }}>
-                    <Download size={16} /> Exportar como Excel
-                  </button>
-                </div>
-              )}
             </div>
           </div>
         </div>
