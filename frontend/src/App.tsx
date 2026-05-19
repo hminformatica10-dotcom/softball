@@ -263,6 +263,12 @@ function App() {
     result: 'Pendiente'
   });
 
+  // Form Visibility States
+  const [showPlayerForm, setShowPlayerForm] = useState(false);
+  const [showPaymentForm, setShowPaymentForm] = useState(false);
+  const [showExpenseForm, setShowExpenseForm] = useState(false);
+  const [showGameForm, setShowGameForm] = useState(false);
+
   // PIN Security State - RESTORED & ENHANCED
   const [isLocked, setIsLocked] = useState(() => !!localStorage.getItem('softball_app_pin'));
   const [pinSetupMode, setPinSetupMode] = useState(false);
@@ -2515,6 +2521,8 @@ function App() {
             confirmDelete={confirmDelete}
             renderSearchBar={renderSearchBar}
             positions={positions}
+            showForm={showPlayerForm}
+            setShowForm={setShowPlayerForm}
           />
         );
       case 'Juegos':
@@ -2533,6 +2541,8 @@ function App() {
             formatDate={formatDate}
             openEditModal={openEditModal}
             confirmDelete={confirmDelete}
+            showForm={showGameForm}
+            setShowForm={setShowGameForm}
           />
         );
       case 'Gastos':
@@ -2547,6 +2557,8 @@ function App() {
             formatCurrency={formatCurrency}
             openEditModal={openEditModal}
             onDeleteExpensesByDate={handleDeleteExpensesByDate}
+            showForm={showExpenseForm}
+            setShowForm={setShowExpenseForm}
           />
         );
       case 'Inicio':
@@ -2578,6 +2590,8 @@ function App() {
             openEditModal={openEditModal}
             onDeletePaymentsByDate={handleDeletePaymentsByDate}
             onDeletePayment={handleDeletePayment}
+            showForm={showPaymentForm}
+            setShowForm={setShowPaymentForm}
           />
         );
       case 'Asistencia':

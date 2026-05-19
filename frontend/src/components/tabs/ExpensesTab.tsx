@@ -15,6 +15,8 @@ interface ExpensesTabProps {
   formatCurrency?: (val: number) => string;
   openEditModal?: (type: string, data: any) => void;
   onDeleteExpensesByDate?: (date: string, password: string) => Promise<void>;
+  showForm: boolean;
+  setShowForm: (val: boolean) => void;
 }
 
 export const ExpensesTab: React.FC<ExpensesTabProps> = ({
@@ -27,7 +29,9 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({
   expenses = [],
   formatCurrency = (val) => `$${val.toFixed(2)}`,
   openEditModal,
-  onDeleteExpensesByDate
+  onDeleteExpensesByDate,
+  showForm,
+  setShowForm
 }) => {
   const [dateFilter, setDateFilter] = useState('');
   const [deleteByDateModal, setDeleteByDateModal] = useState({ isOpen: false, date: '', loading: false });
@@ -77,6 +81,7 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({
 
   return (
     <div className="grid-layout">
+      {showForm && (
       <div className="glass-panel" style={{ gridColumn: '1 / -1' }}>
         <h2 className="section-title"><CreditCard size={24} color="#ef4444" />{t('Gasto de Equipo', config.language)} </h2>
         <form onSubmit={handleExpenseSubmit}>
@@ -142,8 +147,19 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({
           <button type="submit" className="btn-primary" style={{ background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)' }}>
             <CreditCard size={18} /> {t('Guardar Gasto', config.language)} 
           </button>
+          <button type="button" onClick={() => { setShowForm(false); setExpenseFormData({ category: '', otherCategory: '', amount: '', eventDate: new Date().toISOString().split('T')[0], description: '', receipt: '' }); }} className="btn-secondary" style={{ marginTop: '0.5rem' }}>
+            {t('Cancelar', config.language)}
+          </button>
         </form>
       </div>
+      )}
+      {!showForm && (
+      <div className="glass-panel" style={{ gridColumn: '1 / -1' }}>
+        <button onClick={() => setShowForm(true)} className="btn-primary" style={{ background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)', width: '100%' }}>
+          <CreditCard size={18} /> Agregar Nuevo Gasto
+        </button>
+      </div>
+      )}
 
       <div className="glass-panel" style={{ gridColumn: '1 / -1' }}>
         <h3 className="section-title" style={{ color: '#ef4444' }}>

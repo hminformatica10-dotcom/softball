@@ -17,6 +17,8 @@ interface GamesTabProps {
   formatDate: (dateString: string) => string;
   openEditModal: (type: string, item: any) => void;
   confirmDelete: (type: string, id: string) => void;
+  showForm: boolean;
+  setShowForm: (val: boolean) => void;
 }
 
 export const GamesTab: React.FC<GamesTabProps> = ({
@@ -32,29 +34,45 @@ export const GamesTab: React.FC<GamesTabProps> = ({
   renderDateFilter,
   formatDate: _formatDate,
   openEditModal,
-  confirmDelete
+  confirmDelete,
+  showForm,
+  setShowForm
 }) => {
   return (
     <div className="grid-layout">
-      <div className="glass-panel">
-        <h2 className="section-title"><Calendar size={22} color={config.primaryColor} />{t('Nueva Cita / Juego', config.language)} </h2>
-        <form onSubmit={handleGameSubmit}>
-          <div className="form-group"><label className="form-label">{t('Oponente / Vs', config.language)} </label><input type="text" className="input-field" placeholder="Ej. Los Tigres" value={gameFormData.opponent} onChange={e => setGameFormData({ ...gameFormData, opponent: e.target.value })} required /></div>
-          
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-            <div className="form-group"><label className="form-label">{t('Fecha', config.language)} </label><input type="date" className="input-field" value={gameFormData.eventDate} onChange={e => setGameFormData({ ...gameFormData, eventDate: e.target.value })} required style={{ colorScheme: 'dark' }} /></div>
-            <div className="form-group"><label className="form-label">{t('Hora', config.language)} </label><input type="time" className="input-field" value={gameFormData.time} onChange={e => setGameFormData({ ...gameFormData, time: e.target.value })} style={{ colorScheme: 'dark' }} /></div>
-          </div>
+      {showForm && (
+        <div className="glass-panel">
+          <h2 className="section-title"><Calendar size={22} color={config.primaryColor} />{t('Nueva Cita / Juego', config.language)} </h2>
+          <form onSubmit={handleGameSubmit}>
+            <div className="form-group"><label className="form-label">{t('Oponente / Vs', config.language)} </label><input type="text" className="input-field" placeholder="Ej. Los Tigres" value={gameFormData.opponent} onChange={e => setGameFormData({ ...gameFormData, opponent: e.target.value })} required /></div>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+              <div className="form-group"><label className="form-label">{t('Fecha', config.language)} </label><input type="date" className="input-field" value={gameFormData.eventDate} onChange={e => setGameFormData({ ...gameFormData, eventDate: e.target.value })} required style={{ colorScheme: 'dark' }} /></div>
+              <div className="form-group"><label className="form-label">{t('Hora', config.language)} </label><input type="time" className="input-field" value={gameFormData.time} onChange={e => setGameFormData({ ...gameFormData, time: e.target.value })} style={{ colorScheme: 'dark' }} /></div>
+            </div>
 
-          <div className="form-group"><label className="form-label">{t('Lugar / Estadio', config.language)} </label><input type="text" className="input-field" placeholder="Ej. Estadio Olímpico" value={gameFormData.location || ''} onChange={e => setGameFormData({ ...gameFormData, location: e.target.value })} /></div>
-          <div className="form-group"><label className="form-label">{t('Resultado', config.language)} </label>
-            <select className="input-field" value={gameFormData.result} onChange={e => setGameFormData({ ...gameFormData, result: e.target.value })}>
-              <option value="Pendiente">Pendiente</option><option value="Victoria">Victoria</option><option value="Derrota">Derrota</option><option value="Empate">Empate</option><option value="Suspendido">Suspendido</option>
-            </select>
-          </div>
-          <button type="submit" className="btn-primary" style={{ background: config.primaryColor }}><Calendar size={18} />{t('Guardar Evento', config.language)} </button>
-        </form>
-      </div>
+            <div className="form-group"><label className="form-label">{t('Lugar / Estadio', config.language)} </label><input type="text" className="input-field" placeholder="Ej. Estadio Olímpico" value={gameFormData.location || ''} onChange={e => setGameFormData({ ...gameFormData, location: e.target.value })} /></div>
+            <div className="form-group"><label className="form-label">{t('Resultado', config.language)} </label>
+              <select className="input-field" value={gameFormData.result} onChange={e => setGameFormData({ ...gameFormData, result: e.target.value })}>
+                <option value="Pendiente">Pendiente</option><option value="Victoria">Victoria</option><option value="Derrota">Derrota</option><option value="Empate">Empate</option><option value="Suspendido">Suspendido</option>
+              </select>
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button type="submit" className="btn-primary" style={{ background: config.primaryColor, flex: 1 }}><Calendar size={18} />{t('Guardar Evento', config.language)} </button>
+              <button type="button" className="btn-secondary" onClick={() => { setShowForm(false); setGameFormData({ opponent: '', eventDate: new Date().toISOString().split('T')[0], time: '', location: '', result: 'Pendiente' }); }} style={{ flex: 1 }}>Cancelar</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {!showForm && (
+        <div className="glass-panel">
+          <h2 className="section-title"><Calendar size={22} color={config.primaryColor} />{t('Nueva Cita / Juego', config.language)} </h2>
+          <button className="btn-primary" onClick={() => setShowForm(true)} style={{ background: config.primaryColor, width: '100%', padding: '1rem' }}>
+            <Calendar size={20} style={{ marginRight: '0.5rem' }} /> Agregar Nuevo Juego
+          </button>
+        </div>
+      )}
       <div className="glass-panel">
         <h2 className="section-title"><Activity size={22} color="#8b5cf6" />{t('Calendario Reciente', config.language)} ({filteredGames.length})</h2>
         {renderDateFilter()}

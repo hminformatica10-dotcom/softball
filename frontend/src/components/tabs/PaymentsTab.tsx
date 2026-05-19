@@ -21,6 +21,8 @@ interface PaymentsTabProps {
   openEditModal?: (type: string, data: any) => void;
   onDeletePaymentsByDate?: (date: string, password: string) => Promise<void>;
   onDeletePayment?: (paymentId: string, password: string) => Promise<void>;
+  showForm: boolean;
+  setShowForm: (val: boolean) => void;
 }
 
 export const PaymentsTab: React.FC<PaymentsTabProps> = ({
@@ -38,7 +40,9 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
   deleteConcept,
   openEditModal,
   onDeletePaymentsByDate,
-  onDeletePayment
+  onDeletePayment,
+  showForm,
+  setShowForm
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'individual' | 'conceptos'>('individual');
   const [selectedConcept, setSelectedConcept] = useState<PaymentConcept | null>(null);
@@ -102,14 +106,16 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
   };
 
   const renderIndividualForm = () => (
-    <div className="glass-panel" style={{ height: 'fit-content' }}>
-      <h3 className="section-title" style={{ color: '#22c55e' }}>
-        <User size={22} /> {t('Pago Individual', config.language)}
-      </h3>
-      <form onSubmit={(e) => {
-        setPaymentFormData({...paymentFormData, conceptId: null, description: 'Pago Individual'});
-        setTimeout(() => handlePaymentSubmit(e), 0);
-      }}>
+    <>
+      {showForm && (
+      <div className="glass-panel" style={{ height: 'fit-content' }}>
+        <h3 className="section-title" style={{ color: '#22c55e' }}>
+          <User size={22} /> {t('Pago Individual', config.language)}
+        </h3>
+        <form onSubmit={(e) => {
+          setPaymentFormData({...paymentFormData, conceptId: null, description: 'Pago Individual'});
+          setTimeout(() => handlePaymentSubmit(e), 0);
+        }}>
         <div className="form-group">
           <label className="form-label">{t('Jugador', config.language)}</label>
           <select 
@@ -165,8 +171,20 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
         <button type="submit" className="btn-primary" style={{ background: `linear-gradient(135deg, #22c55e 0%, #16a34a 100%)` }}>
           <DollarSign size={20} /> {t('Registrar Pago', config.language)}
         </button>
-      </form>
-    </div>
+        <button type="button" onClick={() => { setShowForm(false); setPaymentFormData({ playerId: '', amount: '', eventDate: new Date().toISOString().split('T')[0], notes: '' }); }} className="btn-secondary" style={{ marginTop: '0.5rem' }}>
+          {t('Cancelar', config.language)}
+        </button>
+        </form>
+      </div>
+      )}
+      {!showForm && (
+      <div className="glass-panel" style={{ height: 'fit-content' }}>
+        <button onClick={() => setShowForm(true)} className="btn-primary" style={{ background: `linear-gradient(135deg, #22c55e 0%, #16a34a 100%)`, width: '100%' }}>
+          <DollarSign size={20} /> Agregar Nuevo Pago
+        </button>
+      </div>
+      )}
+    </>
   );
 
   const renderIndividualView = () => {
