@@ -116,6 +116,7 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({
           <div className="form-group"><label className="form-label">{t('Monto ($)', config.language)} </label><input type="number" min="1" step="0.1" className="input-field" placeholder="0.00" value={expenseFormData.amount} onChange={e => setExpenseFormData({ ...expenseFormData, amount: e.target.value })} required /></div>
           <div className="form-group"><label className="form-label">{t('Fecha', config.language)} </label><input type="date" className="input-field" value={expenseFormData.eventDate} onChange={e => setExpenseFormData({ ...expenseFormData, eventDate: e.target.value })} required style={{ colorScheme: 'dark' }} /></div>
           <div className="form-group"><label className="form-label">{t('Descripción', config.language)} </label><input type="text" className="input-field" placeholder="Ej. Pago de inscripción" value={expenseFormData.description} onChange={e => setExpenseFormData({ ...expenseFormData, description: e.target.value })} required /></div>
+          <div className="form-group"><label className="form-label">{t('Responsable', config.language)} </label><input type="text" className="input-field" placeholder="Ej. Juan Pérez" value={expenseFormData.responsible || ''} onChange={e => setExpenseFormData({ ...expenseFormData, responsible: e.target.value })} /></div>
           
           <div className="form-group">
             <label className="form-label">Foto del Recibo (Opcional)</label>
@@ -147,7 +148,7 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({
           <button type="submit" className="btn-primary" style={{ background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)' }}>
             <CreditCard size={18} /> {t('Guardar Gasto', config.language)} 
           </button>
-          <button type="button" onClick={() => { setShowForm(false); setExpenseFormData({ category: '', otherCategory: '', amount: '', eventDate: new Date().toISOString().split('T')[0], description: '', receipt: '' }); }} className="btn-secondary" style={{ marginTop: '0.5rem' }}>
+          <button type="button" onClick={() => { setShowForm(false); setExpenseFormData({ category: '', otherCategory: '', amount: '', eventDate: new Date().toISOString().split('T')[0], description: '', receipt: '', responsible: '' }); }} className="btn-secondary" style={{ marginTop: '0.5rem' }}>
             {t('Cancelar', config.language)}
           </button>
         </form>

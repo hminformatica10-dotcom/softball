@@ -28,7 +28,7 @@ interface AttendanceTabProps {
   formatDate: (dateString: string) => string;
   formatCurrency: (val: number) => string;
   normalizeDate: (dateString: string) => string;
-  handleQuickPayment: (player: Player, gameDateStr: string, gameOpponent: string, rawDate: string) => void;
+  handleQuickPayment: (player: Player, gameDateStr: string, gameOpponent: string, rawDate: string, gameFee?: number | string) => void;
   setConfirmActionModal: (val: ConfirmActionModal) => void;
   setConfirmActionInput: (val: string) => void;
   confirmDelete: (type: string, id: string) => void;
@@ -53,83 +53,91 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
   setConfirmActionInput,
   confirmDelete
 }) => {
-  const [searchTerm, setSearchTerm] = useState('');
+  const [isGameListOpen, setIsGameListOpen] = useState(false);
   const [showAll, setShowAll] = useState(false);
 
-  const filteredGames = games
-    .filter(g => 
-      g.opponent.toLowerCase().includes(searchTerm.toLowerCase()) || 
-      formatDate(g.eventDate || g.date || '').includes(searchTerm)
-    )
-    .sort((a, b) => new Date(b.eventDate || b.date || 0).getTime() - new Date(a.eventDate || a.date || 0).getTime());
-
-  const displayedGames = showAll ? filteredGames : filteredGames.slice(0, 5);
+  const sortedGames = [...games].sort((a, b) => new Date(b.eventDate || b.date || 0).getTime() - new Date(a.eventDate || a.date || 0).getTime());
+  const displayedGames = showAll ? sortedGames : sortedGames.slice(0, 3);
 
   return (
     <div className="grid-layout">
       <div className="glass-panel" style={{ width: '100%', gridColumn: '1 / -1' }}>
         <h2 className="section-title"><ClipboardCheck size={24} color={config.primaryColor} />{t('Asistencia y Pagos', config.language)} </h2>
         
+        {!paymentControlGameId && (
         <div style={{ marginBottom: '1.5rem' }}>
-          <label className="form-label" style={{ marginBottom: '0.8rem', display: 'block' }}>{t('Seleccione el Partido a Controlar', config.language)}</label>
           
-          <div style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', background: 'rgba(255,255,255,0.05)', borderRadius: '12px', padding: '0.75rem 1rem', border: '1px solid rgba(255,255,255,0.1)' }}>
-            <Search size={20} color="#94a3b8" style={{ marginRight: '0.5rem' }} />
-            <input 
-              type="text" 
-              placeholder={t('Buscar partido...', config.language)} 
-              value={searchTerm} 
-              onChange={(e) => setSearchTerm(e.target.value)} 
-              style={{ background: 'transparent', border: 'none', color: '#f8fafc', width: '100%', outline: 'none', fontSize: '1rem' }} 
-            />
-          </div>
+          <button 
+            className="btn-primary" 
+            onClick={() => setIsGameListOpen(!isGameListOpen)}
+            style={{ width: '100%', padding: '1rem', background: `linear-gradient(135deg, ${config.primaryColor} 0%, #2563eb 100%)`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Calendar size={20} />
+              <span style={{ fontSize: '1.05rem' }}>{t('Seleccionar Partido', config.language)}</span>
+            </div>
+            {isGameListOpen ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+          </button>
 
-          <div className="selection-grid" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            {displayedGames.map(g => {
-              const isActive = paymentControlGameId === g.id;
-              return (
-                <div 
-                  key={g.id} 
-                  className={`selection-card ${isActive ? 'active' : ''}`}
-                  onClick={() => setPaymentControlGameId(g.id)}
+          {isGameListOpen && (
+            <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              {displayedGames.map((g, idx) => {
+                return (
+                  <div 
+                    key={g.id} 
+                    className="selection-card"
+                    onClick={() => { setPaymentControlGameId(g.id); setIsGameListOpen(false); setShowAll(false); }}
+                    style={{ 
+                      width: '100%',
+                      cursor: 'pointer',
+                      background: 'rgba(255,255,255,0.03)',
+                      border: '1px solid rgba(255,255,255,0.05)',
+                      padding: '1.25rem',
+                      borderRadius: '16px',
+                      transition: 'all 0.2s ease',
+                      animation: `fadeInUp 0.4s ease forwards`,
+                      animationDelay: `${idx * 0.08}s`,
+                      opacity: 0,
+                      transform: 'translateY(10px)',
+                      boxShadow: '0 4px 20px rgba(0,0,0,0.1)'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                      <div className="selection-card-icon" style={{ color: config.primaryColor, background: `${config.primaryColor}20`, padding: '0.75rem', borderRadius: '14px' }}>
+                        <Calendar size={24} />
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: '800', color: '#f8fafc', fontSize: '1.15rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Vs {g.opponent}</div>
+                        <div style={{ fontSize: '0.85rem', color: '#94a3b8', marginTop: '0.2rem', fontWeight: '500' }}>{formatDate(g.eventDate || g.date || '')}</div>
+                      </div>
+                      <div style={{ color: config.primaryColor, background: `${config.primaryColor}10`, padding: '0.5rem', borderRadius: '50%' }}>
+                        <ChevronDown size={16} style={{ transform: 'rotate(-90deg)' }} />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+              
+              {sortedGames.length > 3 && !showAll && (
+                <button 
+                  onClick={() => setShowAll(true)} 
                   style={{ 
-                    width: '100%',
-                    cursor: 'pointer',
-                    background: isActive ? `${config.primaryColor}15` : 'rgba(255,255,255,0.03)',
-                    border: isActive ? `1px solid ${config.primaryColor}` : '1px solid rgba(255,255,255,0.05)',
-                    padding: '1rem',
-                    borderRadius: '16px',
-                    transition: 'all 0.2s ease'
+                    marginTop: '0.5rem', background: 'transparent', border: '1px dashed rgba(255,255,255,0.1)', color: config.primaryColor, 
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', cursor: 'pointer', 
+                    fontWeight: '700', fontSize: '0.9rem', width: '100%', padding: '1rem', borderRadius: '16px',
+                    animation: `fadeInUp 0.4s ease forwards`, animationDelay: `${displayedGames.length * 0.08}s`, opacity: 0
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                    <div className="selection-card-icon" style={{ color: isActive ? config.primaryColor : '#94a3b8', background: isActive ? `${config.primaryColor}20` : 'rgba(255,255,255,0.05)', padding: '0.5rem', borderRadius: '10px' }}>
-                      <Calendar size={20} />
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 'bold', color: isActive ? '#f8fafc' : '#e2e8f0', fontSize: '1rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Vs {g.opponent}</div>
-                      <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>{formatDate(g.eventDate || g.date || '')}</div>
-                    </div>
-                    {isActive && <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: config.primaryColor, boxShadow: `0 0 8px ${config.primaryColor}` }}></div>}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {filteredGames.length > 5 && (
-            <button 
-              onClick={() => setShowAll(!showAll)} 
-              style={{ 
-                marginTop: '1rem', background: 'transparent', border: 'none', color: config.primaryColor, 
-                display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', 
-                fontWeight: '700', fontSize: '0.85rem'
-              }}
-            >
-              {showAll ? <><ChevronUp size={16} /> {t('Ver menos', config.language)}</> : <><ChevronDown size={16} /> {t('Ver más partidos', config.language)} ({filteredGames.length - 5})</>}
-            </button>
+                  <ChevronDown size={18} /> {t('Ver más juegos pasados', config.language)} ({sortedGames.length - 3})
+                </button>
+              )}
+              {sortedGames.length === 0 && (
+                <p style={{ color: '#94a3b8', textAlign: 'center', padding: '1rem' }}>No se encontraron juegos registrados.</p>
+              )}
+            </div>
           )}
         </div>
+        )}
 
         {paymentControlGameId ? (() => {
             const selectedGame = games.find(g => g.id === paymentControlGameId);
@@ -150,9 +158,24 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
             const countPaid = payers.filter(p => p.payment && p.payment.description !== 'Ausente').length;
             const countAbsent = payers.filter(p => p.payment && p.payment.description === 'Ausente').length;
             const countUnpaid = payers.length - countPaid - countAbsent;
+            const totalAmountPaid = payers.reduce((sum, p) => {
+              if (p.payment && p.payment.description !== 'Ausente' && p.payment.description !== 'Deuda Pendiente') {
+                return sum + (Number(p.payment.amount) || 0);
+              }
+              return sum;
+            }, 0);
 
             return (
               <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', padding: '1rem', background: `${config.primaryColor}15`, borderRadius: '12px', border: `1px solid ${config.primaryColor}40` }}>
+                  <div>
+                    <h3 style={{ margin: 0, color: '#f8fafc', fontSize: '1.1rem' }}>Vs {selectedGame.opponent}</h3>
+                    <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.85rem' }}>{gameDateStr}</p>
+                  </div>
+                  <button className="btn-secondary" onClick={() => { setPaymentControlGameId(''); setIsGameListOpen(true); setShowAll(false); }} style={{ fontSize: '0.8rem', padding: '0.4rem 0.8rem' }}>
+                    Cambiar Partido
+                  </button>
+                </div>
                 <div style={{ 
                   display: 'grid', 
                   gridTemplateColumns: 'repeat(3, 1fr)', 
@@ -176,6 +199,22 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
                     <div style={{ color: '#94a3b8', fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase' }}>Falta</div>
                   </div>
                 </div>
+                
+                <div style={{ 
+                  display: 'flex', 
+                  justifyContent: 'center', 
+                  alignItems: 'center', 
+                  marginBottom: '1.5rem',
+                  padding: '1rem',
+                  background: 'rgba(34, 197, 94, 0.1)',
+                  border: '1px dashed rgba(34, 197, 94, 0.3)',
+                  borderRadius: '16px'
+                }}>
+                  <div style={{ fontWeight: '800', color: '#22c55e', fontSize: '1.3rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span style={{ fontSize: '0.9rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 'bold' }}>Total Recaudado:</span> 
+                    {formatCurrency(totalAmountPaid)}
+                  </div>
+                </div>
 
                 {payers.length === 0 ? <div className="empty-state"><h3>Roster vacío.</h3></div> : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
@@ -191,7 +230,7 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-start' }}>
                             {!payment ? (
                               <>
-                                <button onClick={() => handleQuickPayment(player, gameDateStr, selectedGame.opponent, selectedGame.eventDate)} className="btn-primary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', flex: 1, minWidth: '70px', background: '#22c55e' }}>Pagó</button>
+                                <button onClick={() => handleQuickPayment(player, gameDateStr, selectedGame.opponent, selectedGame.eventDate, selectedGame.feePerPerson)} className="btn-primary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', flex: 1, minWidth: '70px', background: '#22c55e' }}>Pagó</button>
                                 <button 
                                   onClick={() => {
                                     setConfirmActionModal({
@@ -243,11 +282,6 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
                 )}
               </div>
             );
-        })() : (
-          <div className="empty-state" style={{ padding: '3rem 1rem' }}>
-            <ClipboardCheck size={48} color={config.primaryColor} style={{ opacity: 0.3, marginBottom: '1rem' }} />
-            <h3 style={{ color: '#f8fafc' }}>Selecciona un partido</h3>
-            <p style={{ color: '#94a3b8', fontSize: '0.9rem', maxWidth: '300px', margin: '0.5rem auto 0' }}>Elige un juego arriba para registrar quiénes han asistido y pagado satisfactoriamente.</p>
           </div>
         )}
       </div>

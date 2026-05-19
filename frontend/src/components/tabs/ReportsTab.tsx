@@ -68,6 +68,7 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
   const [activeChart, setActiveChart] = React.useState(chartView);
   const [isExporting, setIsExporting] = React.useState(false);
   const [exportMessage, setExportMessage] = React.useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
+  const [showMovementsManual, setShowMovementsManual] = React.useState(false);
 
   // Sync internal state with prop if needed
   React.useEffect(() => {
@@ -808,11 +809,25 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
       )}
 
       <div className="glass-panel" style={{ width: '100%', gridColumn: '1 / -1' }}>
-        <h2 className="section-title"><ClipboardCheck size={22} color="#a855f7" /> {t('Movimientos', config.language)} ({displayedTransactions.length}{!showingAllForDate && combinedTransactions.length > 5 ? ` de ${combinedTransactions.length}` : ''})</h2>
-        {displayedTransactions.length === 0 ? (
-          <div className="empty-state"><h3>No hay registros</h3></div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '1rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: (showMovementsManual || reportSearch.trim().length > 0 || hasActiveFilters) ? '1rem' : '0' }}>
+          <h2 className="section-title" style={{ margin: 0 }}><ClipboardCheck size={22} color="#a855f7" /> {t('Movimientos', config.language)} ({combinedTransactions.length})</h2>
+          {!(reportSearch.trim().length > 0 || hasActiveFilters) && (
+            <button 
+              className="btn-secondary" 
+              onClick={() => setShowMovementsManual(!showMovementsManual)}
+              style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}
+            >
+              {showMovementsManual ? 'Ocultar' : 'Ver Movimientos'}
+            </button>
+          )}
+        </div>
+
+        {(showMovementsManual || reportSearch.trim().length > 0 || hasActiveFilters) && (
+          <>
+            {displayedTransactions.length === 0 ? (
+              <div className="empty-state"><h3>No hay registros</h3></div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             {displayedTransactions.map((tx: any) => {
                const isDebt = tx.description === 'Deuda Pendiente';
                const isIncome = tx.type === 'ingreso';
@@ -868,6 +883,8 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
                );
             })}
           </div>
+            )}
+          </>
         )}
       </div>
     </div>

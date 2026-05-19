@@ -51,7 +51,10 @@ export const GamesTab: React.FC<GamesTabProps> = ({
               <div className="form-group"><label className="form-label">{t('Hora', config.language)} </label><input type="time" className="input-field" value={gameFormData.time} onChange={e => setGameFormData({ ...gameFormData, time: e.target.value })} style={{ colorScheme: 'dark' }} /></div>
             </div>
 
-            <div className="form-group"><label className="form-label">{t('Lugar / Estadio', config.language)} </label><input type="text" className="input-field" placeholder="Ej. Estadio Olímpico" value={gameFormData.location || ''} onChange={e => setGameFormData({ ...gameFormData, location: e.target.value })} /></div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+              <div className="form-group"><label className="form-label">{t('Lugar / Estadio', config.language)} </label><input type="text" className="input-field" placeholder="Ej. Estadio" value={gameFormData.location || ''} onChange={e => setGameFormData({ ...gameFormData, location: e.target.value })} /></div>
+              <div className="form-group"><label className="form-label">Cuota / Costo ($) </label><input type="number" className="input-field" placeholder="Ej. 10" value={gameFormData.feePerPerson || ''} onChange={e => setGameFormData({ ...gameFormData, feePerPerson: e.target.value })} /></div>
+            </div>
             <div className="form-group"><label className="form-label">{t('Resultado', config.language)} </label>
               <select className="input-field" value={gameFormData.result} onChange={e => setGameFormData({ ...gameFormData, result: e.target.value })}>
                 <option value="Pendiente">Pendiente</option><option value="Victoria">Victoria</option><option value="Derrota">Derrota</option><option value="Empate">Empate</option><option value="Suspendido">Suspendido</option>
@@ -59,7 +62,7 @@ export const GamesTab: React.FC<GamesTabProps> = ({
             </div>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
               <button type="submit" className="btn-primary" style={{ background: config.primaryColor, flex: 1 }}><Calendar size={18} />{t('Guardar Evento', config.language)} </button>
-              <button type="button" className="btn-secondary" onClick={() => { setShowForm(false); setGameFormData({ opponent: '', eventDate: new Date().toISOString().split('T')[0], time: '', location: '', result: 'Pendiente' }); }} style={{ flex: 1 }}>Cancelar</button>
+              <button type="button" className="btn-secondary" onClick={() => { setShowForm(false); setGameFormData({ opponent: '', eventDate: new Date().toISOString().split('T')[0], time: '', location: '', result: 'Pendiente', feePerPerson: '' }); }} style={{ flex: 1 }}>Cancelar</button>
             </div>
           </form>
         </div>

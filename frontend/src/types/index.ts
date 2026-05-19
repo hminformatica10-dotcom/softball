@@ -39,6 +39,7 @@ export interface Expense {
   eventDate: string;
   date?: string;
   registrationDate?: string;
+  responsible?: string;
 }
 
 export interface Game {
@@ -49,6 +50,7 @@ export interface Game {
   time?: string;
   location?: string;
   result: string;
+  feePerPerson?: number | string;
 }
 
 export interface AppConfig {

@@ -252,7 +252,8 @@ function App() {
     amount: '',
     description: '',
     receipt: '',
-    eventDate: getTodayString()
+    eventDate: getTodayString(),
+    responsible: ''
   });
 
   const [gameFormData, setGameFormData] = useState({
@@ -260,7 +261,8 @@ function App() {
     eventDate: getTodayString(),
     time: '',
     location: '',
-    result: 'Pendiente'
+    result: 'Pendiente',
+    feePerPerson: ''
   });
 
   // Form Visibility States
@@ -617,8 +619,8 @@ function App() {
       playerId: '', amount: '', description: '', otherDescription: '', abonoDescription: '', notes: '', gameId: '', eventDate: ''
     });
     setFormData({ name: '', jerseyNumber: '', position: '', battingHand: 'Right', photo: '' });
-    setExpenseFormData({ category: '', otherCategory: '', amount: '', description: '', receipt: '', eventDate: getTodayString() });
-    setGameFormData({ opponent: '', eventDate: getTodayString(), time: '', location: '', result: 'Pendiente' });
+    setExpenseFormData({ category: '', otherCategory: '', amount: '', description: '', receipt: '', eventDate: getTodayString(), responsible: '' });
+    setGameFormData({ opponent: '', eventDate: getTodayString(), time: '', location: '', result: 'Pendiente', feePerPerson: '' });
     setPaymentControlGameId('');
 
     // 2. Limpiar Búsquedas de Texto
@@ -648,7 +650,7 @@ function App() {
   }, [activeTab]);
 
   const positions = ['Pitcher', 'Catcher', 'First Base', 'Infield', 'Outfield', 'Designated Hitter'];
-  const expenseCategories = ['Arbitraje', 'Bolas', 'Pago de Terreno', 'Bebidas/Comida', 'Equipo', 'Otro'];
+  const expenseCategories = ['Pago de Terreno', 'Comida', 'Utileria', 'Otro'];
 
   // Auth Effect
   useEffect(() => {
@@ -1380,11 +1382,12 @@ function App() {
       amount: Number(expenseFormData.amount),
       description: expenseFormData.description,
       receipt: expenseFormData.receipt || '',
-      eventDate: normalizeDate(expenseFormData.eventDate || getTodayString())
+      eventDate: normalizeDate(expenseFormData.eventDate || getTodayString()),
+      responsible: expenseFormData.responsible || ''
     };
 
     const success = await mutateData(EXPENSE_API_URL, 'POST', payload, setExpenses, `softball_expenses_${activeTeamId}`, (success: boolean) => {
-      if (success) setExpenseFormData({ ...expenseFormData, amount: '', description: '', receipt: '', otherCategory: '', eventDate: getTodayString() });
+      if (success) setExpenseFormData({ ...expenseFormData, amount: '', description: '', receipt: '', otherCategory: '', eventDate: getTodayString(), responsible: '' });
     });
 
     return success;
@@ -1428,7 +1431,7 @@ function App() {
     };
 
     mutateData(GAME_API_URL, 'POST', payload, setGamesSorted, `softball_games_${activeTeamId}`, (success: boolean) => {
-      if (success) setGameFormData({ opponent: '', eventDate: getTodayString(), time: '', location: '', result: 'Pendiente' });
+      if (success) setGameFormData({ opponent: '', eventDate: getTodayString(), time: '', location: '', result: 'Pendiente', feePerPerson: '' });
     });
   };
 
@@ -1571,8 +1574,8 @@ function App() {
     return matchSearch && isDateInRange(g.eventDate || g.date || '');
   }).sort((a, b) => new Date(b.eventDate || b.date || 0).getTime() - new Date(a.eventDate || a.date || 0).getTime());
 
-  const handleQuickPayment = (player: Player, gameDateStr: string, gameOpponent: string, rawDate: string) => {
-    setQuickPaymentModal({ isOpen: true, player, gameDateStr, rawDate, opponent: gameOpponent, amount: '' });
+  const handleQuickPayment = (player: Player, gameDateStr: string, gameOpponent: string, rawDate: string, gameFee?: string | number) => {
+    setQuickPaymentModal({ isOpen: true, player, gameDateStr, rawDate, opponent: gameOpponent, amount: gameFee ? String(gameFee) : '' });
   };
 
   const submitQuickPayment = async () => {
