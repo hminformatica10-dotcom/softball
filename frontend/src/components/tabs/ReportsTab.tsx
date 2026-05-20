@@ -18,7 +18,13 @@ interface ExportPlugin extends Plugin {
   exportExcel(options: { data: string; fileName: string }): Promise<{ success: boolean; uri: string; message: string }>;
 }
 
-const ExportPluginImpl = registerPlugin<ExportPlugin>('ExportPlugin');
+// Intentar registrar, pero no fallar si no existe
+let ExportPluginImpl: ExportPlugin | null = null;
+try {
+  ExportPluginImpl = registerPlugin<ExportPlugin>('ExportPlugin') as any;
+} catch (e) {
+  console.warn('[INIT] ExportPlugin no disponible, usaremos Filesystem');
+}
 
 interface ReportsTabProps {
   config: AppConfig;
@@ -69,20 +75,21 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
   const [isExporting, setIsExporting] = React.useState(false);
   const [exportMessage, setExportMessage] = React.useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
   const [showMovementsManual, setShowMovementsManual] = React.useState(false);
+  const [showExportMenu, setShowExportMenu] = React.useState(false);
 
   // Sync internal state with prop if needed
   React.useEffect(() => {
     setActiveChart(chartView);
   }, [chartView]);
 
-  const filteredReportPayments = reportType === 'Gastos' ? [] : payments.filter(p => {
+  const filteredReportPayments = reportType === 'Gastos' || reportType === 'Todos' ? [] : payments.filter(p => {
     const matchSearch = p.playerName.toLowerCase().includes(reportSearch.toLowerCase()) || 
                        p.description.toLowerCase().includes(reportSearch.toLowerCase());
     const matchPlayer = !reportPlayerFilter || p.playerId === reportPlayerFilter;
     return matchSearch && matchPlayer && isDateInRange(p.eventDate || p.date || '');
   });
 
-  const filteredReportExpenses = reportType === 'Ingresos' ? [] : expenses.filter(e => {
+  const filteredReportExpenses = reportType === 'Ingresos' || reportType === 'Todos' ? [] : expenses.filter(e => {
     const matchSearch = e.category.toLowerCase().includes(reportSearch.toLowerCase()) ||
                         e.description.toLowerCase().includes(reportSearch.toLowerCase());
     return matchSearch && isDateInRange(e.eventDate || e.date || '');
@@ -379,18 +386,12 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
   };
 
   /**
-   * Exportar PDF usando Storage Access Framework (SAF) - Android nativo moderno
+   * Exportar PDF - Funciona en Web, Android e iOS
    */
   const exportPDFModern = async () => {
-    if (!Capacitor.isNativePlatform()) {
-      // Fallback web
-      exportToPDFWeb();
-      return;
-    }
-
     try {
       setIsExporting(true);
-      console.log('[EXPORT-PDF] Iniciando exportación PDF moderna con SAF...');
+      console.log('[EXPORT-PDF] Iniciando exportación PDF...');
       
       const doc = await generatePDF();
       const base64PDF = doc.output('datauristring').split(',')[1];
@@ -400,42 +401,65 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
       }
 
       console.log('[EXPORT-PDF] Base64 PDF generado, tamaño:', base64PDF.length, 'bytes');
-
       const fileName = generateFileName('pdf');
       console.log('[EXPORT-PDF] Nombre de archivo:', fileName);
 
-      // Llamar al plugin nativo
-      const result = await ExportPluginImpl.exportPDF({
+      if (!Capacitor.isNativePlatform()) {
+        // Fallback web: descargar directamente
+        console.log('[EXPORT-PDF] Plataforma web, descargando...');
+        const doc = await generatePDF();
+        doc.save(fileName);
+        showMessage('success', `✓ PDF descargado: ${fileName}`);
+        setShowExportMenu(false);
+        return;
+      }
+
+      // Android/iOS: intentar con plugin personalizado primero
+      if (ExportPluginImpl) {
+        try {
+          console.log('[EXPORT-PDF] Intentando usar ExportPlugin personalizado...');
+          const result = await ExportPluginImpl.exportPDF({
+            data: base64PDF,
+            fileName: fileName
+          });
+          console.log('[EXPORT-PDF] Éxito con ExportPlugin:', result);
+          showMessage('success', `✓ ${result.message}`);
+          setShowExportMenu(false);
+          return;
+        } catch (pluginError: any) {
+          console.warn('[EXPORT-PDF] ExportPlugin falló, usando Filesystem:', pluginError.message);
+        }
+      }
+
+      // Fallback Android/iOS: usar Filesystem
+      console.log('[EXPORT-PDF] Guardando en Filesystem...');
+      await Filesystem.writeFile({
+        path: fileName,
         data: base64PDF,
-        fileName: fileName
+        directory: Directory.Documents,
+        recursive: true
       });
 
-      console.log('[EXPORT-PDF] Resultado:', result);
-      showMessage('success', `✓ ${result.message}`);
+      console.log('[EXPORT-PDF] Archivo guardado en Documents');
+      showMessage('success', `✓ PDF guardado: ${fileName}`);
       setShowExportMenu(false);
 
     } catch (error: any) {
       console.error('[EXPORT-PDF] Error:', error);
-      const errorMsg = error.message || 'Error al exportar PDF';
-      showMessage('error', `✗ Error: ${errorMsg}`);
+      const errorMsg = error?.message || String(error) || 'Error desconocido';
+      showMessage('error', `✗ ${errorMsg}`);
     } finally {
       setIsExporting(false);
     }
   };
 
   /**
-   * Exportar Excel usando Storage Access Framework (SAF) - Android nativo moderno
+   * Exportar Excel - Funciona en Web, Android e iOS
    */
   const exportExcelModern = async () => {
-    if (!Capacitor.isNativePlatform()) {
-      // Fallback web
-      exportToExcelWeb();
-      return;
-    }
-
     try {
       setIsExporting(true);
-      console.log('[EXPORT-EXCEL] Iniciando exportación Excel moderna con SAF...');
+      console.log('[EXPORT-EXCEL] Iniciando exportación Excel...');
 
       const dataToExport = combinedTransactions.map(tx => {
         let conceptText = tx.title;
@@ -464,99 +488,67 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
       }
 
       console.log('[EXPORT-EXCEL] Base64 Excel generado, tamaño:', base64Excel.length, 'bytes');
-
       const fileName = generateFileName('xlsx');
       console.log('[EXPORT-EXCEL] Nombre de archivo:', fileName);
 
-      // Llamar al plugin nativo
-      const result = await ExportPluginImpl.exportExcel({
+      if (!Capacitor.isNativePlatform()) {
+        // Fallback web: descargar directamente
+        console.log('[EXPORT-EXCEL] Plataforma web, descargando...');
+        const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Finanzas");
+        XLSX.writeFile(workbook, fileName);
+        showMessage('success', `✓ Excel descargado: ${fileName}`);
+        setShowExportMenu(false);
+        return;
+      }
+
+      // Android/iOS: intentar con plugin personalizado primero
+      if (ExportPluginImpl) {
+        try {
+          console.log('[EXPORT-EXCEL] Intentando usar ExportPlugin personalizado...');
+          const result = await ExportPluginImpl.exportExcel({
+            data: base64Excel,
+            fileName: fileName
+          });
+          console.log('[EXPORT-EXCEL] Éxito con ExportPlugin:', result);
+          showMessage('success', `✓ ${result.message}`);
+          setShowExportMenu(false);
+          return;
+        } catch (pluginError: any) {
+          console.warn('[EXPORT-EXCEL] ExportPlugin falló, usando Filesystem:', pluginError.message);
+        }
+      }
+
+      // Fallback Android/iOS: usar Filesystem
+      console.log('[EXPORT-EXCEL] Guardando en Filesystem...');
+      await Filesystem.writeFile({
+        path: fileName,
         data: base64Excel,
-        fileName: fileName
+        directory: Directory.Documents,
+        recursive: true
       });
 
-      console.log('[EXPORT-EXCEL] Resultado:', result);
-      showMessage('success', `✓ ${result.message}`);
+      console.log('[EXPORT-EXCEL] Archivo guardado en Documents');
+      showMessage('success', `✓ Excel guardado: ${fileName}`);
       setShowExportMenu(false);
 
     } catch (error: any) {
       console.error('[EXPORT-EXCEL] Error:', error);
-      const errorMsg = error.message || 'Error al exportar Excel';
-      showMessage('error', `✗ Error: ${errorMsg}`);
+      const errorMsg = error?.message || String(error) || 'Error desconocido';
+      showMessage('error', `✗ ${errorMsg}`);
     } finally {
       setIsExporting(false);
     }
   };
 
   /**
-   * Fallback para web: exportar PDF directamente
-   */
-  const exportToPDFWeb = async () => {
-    try {
-      setIsExporting(true);
-      console.log('[EXPORT-PDF-WEB] Exportando PDF en web...');
-      
-      const doc = await generatePDF();
-      const fileName = generateFileName('pdf');
-      doc.save(fileName);
-      
-      showMessage('success', `✓ PDF descargado: ${fileName}`);
-      setShowExportMenu(false);
-    } catch (error: any) {
-      console.error('[EXPORT-PDF-WEB] Error:', error);
-      showMessage('error', `✗ Error: ${error.message}`);
-    } finally {
-      setIsExporting(false);
-    }
-  };
-
-  /**
-   * Fallback para web: exportar Excel directamente
-   */
-  const exportToExcelWeb = async () => {
-    try {
-      setIsExporting(true);
-      console.log('[EXPORT-EXCEL-WEB] Exportando Excel en web...');
-      
-      const dataToExport = combinedTransactions.map(tx => {
-        let conceptText = tx.title;
-        if (tx.conceptId) {
-          const gc = groupConcepts.find(c => c.id === tx.conceptId || c._id === tx.conceptId);
-          if (gc) conceptText = `[Grup] ${gc.name}`;
-        }
-        return {
-          "Fecha": formatDate(tx.eventDate || ''),
-          "Tipo": tx.type === 'ingreso' ? (tx.description === 'Deuda Pendiente' ? 'DEUDA' : 'INGRESO') : 'GASTO',
-          "Concepto": conceptText,
-          "Descripción": tx.description,
-          "Nota": tx.notes || '',
-          "Monto": tx.amount
-        };
-      });
-
-      const worksheet = XLSX.utils.json_to_sheet(dataToExport);
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Finanzas");
-      
-      const fileName = generateFileName('xlsx');
-      XLSX.writeFile(workbook, fileName);
-      
-      showMessage('success', `✓ Excel descargado: ${fileName}`);
-      setShowExportMenu(false);
-    } catch (error: any) {
-      console.error('[EXPORT-EXCEL-WEB] Error:', error);
-      showMessage('error', `✗ Error: ${error.message}`);
-    } finally {
-      setIsExporting(false);
-    }
-  };
-
-  /**
-   * Compartir PDF usando el dialog nativo de Android
+   * Compartir PDF usando el dialog nativo de Android/iOS
    */
   const shareReportAsNative = async () => {
     try {
       setIsExporting(true);
-      console.log('[SHARE-NATIVE] Iniciando compartición nativa del reporte...');
+      console.log('[SHARE] Iniciando compartición nativa del reporte...');
       
       // Generar PDF
       const doc = await generatePDF();
@@ -567,78 +559,81 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
       }
 
       const fileName = generateFileName('pdf');
-      console.log('[SHARE-NATIVE] Guardando archivo temporal:', fileName);
+      console.log('[SHARE] Nombre de archivo:', fileName);
 
-      // Guardar archivo temporal
-      if (Capacitor.isNativePlatform()) {
-        const fsAvailable = typeof Filesystem !== 'undefined' && typeof Filesystem.writeFile === 'function';
-        const shareAvailable = typeof Share !== 'undefined' && typeof Share.share === 'function';
-        if (!fsAvailable || !shareAvailable) {
-          console.error('[SHARE-NATIVE] Plugins no disponibles:', { fsAvailable, shareAvailable });
-          showMessage('error', '✗ Plugins nativos no disponibles. Usando fallback web.');
-          exportToPDFWeb();
-          return;
+      if (!Capacitor.isNativePlatform()) {
+        // Web: solo descargar
+        console.log('[SHARE] Plataforma web, descargando PDF...');
+        const doc = await generatePDF();
+        doc.save(fileName);
+        showMessage('success', `✓ PDF descargado: ${fileName}`);
+        setShowExportMenu(false);
+        return;
+      }
+
+      // Android/iOS: guardar en cache y compartir
+      try {
+        console.log('[SHARE] Guardando archivo temporal...');
+        
+        await Filesystem.writeFile({
+          path: fileName,
+          data: base64PDF,
+          directory: Directory.Cache,
+          recursive: true
+        });
+
+        console.log('[SHARE] Obteniendo URI del archivo...');
+        const uriResult: any = await Filesystem.getUri({
+          path: fileName,
+          directory: Directory.Cache
+        });
+
+        let fileUri = uriResult?.uri || uriResult;
+        if (!fileUri) {
+          throw new Error('No se pudo obtener la URI del archivo');
         }
 
-        try {
-          await Filesystem.writeFile({
-            path: fileName,
-            data: base64PDF,
-            directory: Directory.Cache,
-            recursive: true
-          });
-
-          // Obtener URI del archivo
-          const uriResult: any = await Filesystem.getUri({
-            path: fileName,
-            directory: Directory.Cache
-          });
-          let fileUri = uriResult?.uri || uriResult;
-          if (!fileUri) {
-            throw new Error('URI de archivo inválida');
-          }
-          // Asegurar esquema
-          if (!fileUri.startsWith('file://') && !fileUri.startsWith('content://')) {
-            fileUri = `file://${fileUri}`;
-          }
-
-          console.log('[SHARE-NATIVE] Compartiendo archivo:', fileUri);
-
-          // Compartir usando API nativa
-          await Share.share({
-            title: 'Compartir Reporte',
-            text: `Reporte financiero - ${(new Date()).toLocaleDateString()}`,
-            url: fileUri,
-            dialogTitle: 'Compartir reporte financiero'
-          });
-
-          showMessage('success', '✓ Reporte compartido exitosamente');
-        } catch (fileError: any) {
-          console.error('[SHARE-NATIVE] Error en operación de archivo o compartir:', fileError);
-          // Si hay error con filesystem o share, intentar con web fallback
-          exportToPDFWeb();
+        // Asegurar esquema
+        if (!fileUri.startsWith('file://') && !fileUri.startsWith('content://')) {
+          fileUri = `file://${fileUri}`;
         }
-      } else {
-        // Web fallback
-        exportToPDFWeb();
+
+        console.log('[SHARE] URI obtenida:', fileUri);
+        console.log('[SHARE] Abriendo diálogo de compartir...');
+
+        // Compartir usando API nativa
+        await Share.share({
+          title: 'Compartir Reporte',
+          text: `Reporte financiero de ${config.teamName || 'Softball'} - ${new Date().toLocaleDateString()}`,
+          url: fileUri,
+          dialogTitle: 'Compartir reporte financiero'
+        });
+
+        console.log('[SHARE] Éxito');
+        showMessage('success', '✓ Reporte compartido exitosamente');
+        setShowExportMenu(false);
+
+      } catch (fileError: any) {
+        console.error('[SHARE] Error en Filesystem/Share:', fileError);
+        const errorMsg = fileError?.message || String(fileError) || 'Error al compartir';
+        showMessage('error', `✗ ${errorMsg}`);
       }
     } catch (error: any) {
-      console.error('[SHARE-NATIVE] Error:', error);
+      console.error('[SHARE] Error general:', error);
       const msg = error?.message || String(error) || 'No se pudo compartir el reporte';
-      showMessage('error', `✗ Error: ${msg}`);
-      try { alert('[SHARE-NATIVE] ' + msg); } catch(e) { /* ignore */ }
+      showMessage('error', `✗ ${msg}`);
     } finally {
       setIsExporting(false);
     }
   };
 
-  // Aliased para compatibilidad con código existente
-  const sharePDFWhatsApp = exportPDFModern;
-  const savePDFToPhone = exportPDFModern;
-  const shareExcelWhatsApp = exportExcelModern;
-  const saveExcelToPhone = exportExcelModern;
-  const exportToPDF = exportPDFModern;
-  const exportToExcel = exportExcelModern;
+  // Aliased para compatibilidad con código existente (si es necesario en el futuro)
+  // const sharePDFWhatsApp = exportPDFModern;
+  // const savePDFToPhone = exportPDFModern;
+  // const shareExcelWhatsApp = exportExcelModern;
+  // const saveExcelToPhone = exportExcelModern;
+  // const exportToPDF = exportPDFModern;
+  // const exportToExcel = exportExcelModern;
 
   const hasActiveFilters = reportPlayerFilter !== '' || startDate !== '' || endDate !== '' || reportType !== 'Todos' || (reportSpecificDate !== '' && reportSpecificDate !== undefined);
 
@@ -662,7 +657,7 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
             <div style={{ position: 'relative', flex: 1, minWidth: '160px' }}>
               <button 
                 type="button" 
-                onClick={() => { try { void shareReportAsNative(); } catch(e:any) { console.error('[APP-ERROR] Click handler error', e); showMessage('error', e?.message || String(e)); try { alert('[APP-ERROR] ' + (e?.message || String(e))); } catch(_){} } }}
+                onClick={() => setShowExportMenu(!showExportMenu)}
                 disabled={isExporting}
                 className="btn-primary" 
                 style={{ 
@@ -684,10 +679,95 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
                   </>
                 ) : (
                   <>
-                    <Share2 size={18} /> Compartir
+                    <Download size={18} /> Descargar
                   </>
                 )}
               </button>
+              
+              {showExportMenu && !isExporting && (
+                <div style={{
+                  position: 'absolute',
+                  top: '100%',
+                  right: 0,
+                  marginTop: '0.5rem',
+                  background: 'rgba(15, 23, 42, 0.95)',
+                  border: '1px solid rgba(255,255,255,0.2)',
+                  borderRadius: '12px',
+                  backdropFilter: 'blur(10px)',
+                  boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
+                  zIndex: 1000,
+                  minWidth: '180px',
+                  overflow: 'hidden'
+                }}>
+                  <button 
+                    onClick={() => { void exportPDFModern(); }}
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem 1rem',
+                      border: 'none',
+                      background: 'transparent',
+                      color: '#f8fafc',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      fontSize: '0.9rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      transition: 'background 0.2s',
+                      borderBottom: '1px solid rgba(255,255,255,0.1)'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                  >
+                    📄 Descargar PDF
+                  </button>
+                  
+                  <button 
+                    onClick={() => { void exportExcelModern(); }}
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem 1rem',
+                      border: 'none',
+                      background: 'transparent',
+                      color: '#f8fafc',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      fontSize: '0.9rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      transition: 'background 0.2s',
+                      borderBottom: '1px solid rgba(255,255,255,0.1)'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                  >
+                    📊 Descargar Excel
+                  </button>
+                  
+                  <button 
+                    onClick={() => { void shareReportAsNative(); }}
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem 1rem',
+                      border: 'none',
+                      background: 'transparent',
+                      color: '#f8fafc',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      fontSize: '0.9rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      transition: 'background 0.2s'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <Share2 size={16} /> Compartir
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>

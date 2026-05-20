@@ -164,6 +164,8 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
               }
               return sum;
             }, 0);
+            const terrenoPayment = Number(selectedGame.fieldPayment || 0);
+            const surplus = totalAmountPaid - terrenoPayment;
 
             return (
               <div>
@@ -201,18 +203,22 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
                 </div>
                 
                 <div style={{ 
-                  display: 'flex', 
-                  justifyContent: 'center', 
-                  alignItems: 'center', 
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+                  gap: '0.75rem',
                   marginBottom: '1.5rem',
-                  padding: '1rem',
-                  background: 'rgba(34, 197, 94, 0.1)',
-                  border: '1px dashed rgba(34, 197, 94, 0.3)',
-                  borderRadius: '16px'
                 }}>
-                  <div style={{ fontWeight: '800', color: '#22c55e', fontSize: '1.3rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <span style={{ fontSize: '0.9rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 'bold' }}>Total Recaudado:</span> 
-                    {formatCurrency(totalAmountPaid)}
+                  <div style={{ padding: '1rem', background: 'rgba(34, 197, 94, 0.1)', border: '1px dashed rgba(34, 197, 94, 0.3)', borderRadius: '16px', textAlign: 'center' }}>
+                    <div style={{ fontWeight: '800', color: '#22c55e', fontSize: '1.2rem' }}>{formatCurrency(totalAmountPaid)}</div>
+                    <div style={{ fontSize: '0.8rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 'bold', marginTop: '0.5rem' }}>Total Recaudado</div>
+                  </div>
+                  <div style={{ padding: '1rem', background: 'rgba(239, 68, 68, 0.1)', border: '1px dashed rgba(239, 68, 68, 0.3)', borderRadius: '16px', textAlign: 'center' }}>
+                    <div style={{ fontWeight: '800', color: '#ef4444', fontSize: '1.2rem' }}>{formatCurrency(terrenoPayment)}</div>
+                    <div style={{ fontSize: '0.8rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 'bold', marginTop: '0.5rem' }}>Pago de Terreno</div>
+                  </div>
+                  <div style={{ padding: '1rem', background: 'rgba(59, 130, 246, 0.1)', border: '1px dashed rgba(59, 130, 246, 0.3)', borderRadius: '16px', textAlign: 'center' }}>
+                    <div style={{ fontWeight: '800', color: surplus >= 0 ? '#2563eb' : '#ef4444', fontSize: '1.2rem' }}>{formatCurrency(surplus)}</div>
+                    <div style={{ fontSize: '0.8rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 'bold', marginTop: '0.5rem' }}>Sobrante</div>
                   </div>
                 </div>
 
@@ -282,8 +288,7 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
                 )}
               </div>
             );
-          </div>
-        )}
+          })() : null}
       </div>
     </div>
   );

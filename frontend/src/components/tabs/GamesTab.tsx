@@ -42,7 +42,7 @@ export const GamesTab: React.FC<GamesTabProps> = ({
     <div className="grid-layout">
       {showForm && (
         <div className="glass-panel">
-          <h2 className="section-title"><Calendar size={22} color={config.primaryColor} />{t('Nueva Cita / Juego', config.language)} </h2>
+          <h2 className="section-title"><Calendar size={22} color={config.primaryColor} />Registro de Juego</h2>
           <form onSubmit={handleGameSubmit}>
             <div className="form-group"><label className="form-label">{t('Oponente / Vs', config.language)} </label><input type="text" className="input-field" placeholder="Ej. Los Tigres" value={gameFormData.opponent} onChange={e => setGameFormData({ ...gameFormData, opponent: e.target.value })} required /></div>
             
@@ -53,16 +53,17 @@ export const GamesTab: React.FC<GamesTabProps> = ({
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
               <div className="form-group"><label className="form-label">{t('Lugar / Estadio', config.language)} </label><input type="text" className="input-field" placeholder="Ej. Estadio" value={gameFormData.location || ''} onChange={e => setGameFormData({ ...gameFormData, location: e.target.value })} /></div>
-              <div className="form-group"><label className="form-label">Cuota / Costo ($) </label><input type="number" className="input-field" placeholder="Ej. 10" value={gameFormData.feePerPerson || ''} onChange={e => setGameFormData({ ...gameFormData, feePerPerson: e.target.value })} /></div>
+              <div className="form-group"><label className="form-label">Cuota por juego ($) </label><input type="number" className="input-field" placeholder="Ej. 10" value={gameFormData.feePerPerson || ''} onChange={e => setGameFormData({ ...gameFormData, feePerPerson: e.target.value })} /></div>
             </div>
+            <div className="form-group"><label className="form-label">Pago de terreno ($) </label><input type="number" className="input-field" placeholder="Ej. 500" value={gameFormData.fieldPayment || ''} onChange={e => setGameFormData({ ...gameFormData, fieldPayment: e.target.value })} /></div>
             <div className="form-group"><label className="form-label">{t('Resultado', config.language)} </label>
               <select className="input-field" value={gameFormData.result} onChange={e => setGameFormData({ ...gameFormData, result: e.target.value })}>
                 <option value="Pendiente">Pendiente</option><option value="Victoria">Victoria</option><option value="Derrota">Derrota</option><option value="Empate">Empate</option><option value="Suspendido">Suspendido</option>
               </select>
             </div>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <button type="submit" className="btn-primary" style={{ background: config.primaryColor, flex: 1 }}><Calendar size={18} />{t('Guardar Evento', config.language)} </button>
-              <button type="button" className="btn-secondary" onClick={() => { setShowForm(false); setGameFormData({ opponent: '', eventDate: new Date().toISOString().split('T')[0], time: '', location: '', result: 'Pendiente', feePerPerson: '' }); }} style={{ flex: 1 }}>Cancelar</button>
+              <button type="submit" className="btn-primary" style={{ background: config.primaryColor, flex: 1 }}><Calendar size={18} />Guardar Registro</button>
+              <button type="button" className="btn-secondary" onClick={() => { setShowForm(false); setGameFormData({ opponent: '', eventDate: new Date().toISOString().split('T')[0], time: '', location: '', result: 'Pendiente', feePerPerson: '', fieldPayment: '' }); }} style={{ flex: 1 }}>Cancelar</button>
             </div>
           </form>
         </div>
@@ -70,9 +71,9 @@ export const GamesTab: React.FC<GamesTabProps> = ({
 
       {!showForm && (
         <div className="glass-panel">
-          <h2 className="section-title"><Calendar size={22} color={config.primaryColor} />{t('Nueva Cita / Juego', config.language)} </h2>
+          <h2 className="section-title"><Calendar size={22} color={config.primaryColor} />Registro de Juego</h2>
           <button className="btn-primary" onClick={() => setShowForm(true)} style={{ background: config.primaryColor, width: '100%', padding: '1rem' }}>
-            <Calendar size={20} style={{ marginRight: '0.5rem' }} /> Agregar Nuevo Juego
+            <Calendar size={20} style={{ marginRight: '0.5rem' }} /> Agregar Registro de Juego
           </button>
         </div>
       )}
@@ -110,6 +111,7 @@ export const GamesTab: React.FC<GamesTabProps> = ({
                         </span>
                         {game.time && <span style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: '600' }}>• {game.time}</span>}
                         {game.location && <span style={{ fontSize: '0.75rem', color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '120px' }}>• {game.location}</span>}
+                        {game.fieldPayment && <span style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: '600' }}>• Terreno {formatCurrency(Number(game.fieldPayment))}</span>}
                       </div>
                     </div>
                   </div>

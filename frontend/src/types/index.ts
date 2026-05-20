@@ -15,6 +15,7 @@ export interface Payment {
   amount: number;
   description: string;
   notes?: string;
+  responsible?: string;
   eventDate: string;
   date?: string;
   registrationDate?: string;
@@ -51,6 +52,7 @@ export interface Game {
   location?: string;
   result: string;
   feePerPerson?: number | string;
+  fieldPayment?: number | string;
 }
 
 export interface AppConfig {

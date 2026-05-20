@@ -5,10 +5,45 @@ import { App as CapApp } from '@capacitor/app';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { Capacitor } from '@capacitor/core';
 import { jwtDecode } from 'jwt-decode';
-import { Users, User, TrendingUp, Sliders, Trash2, Activity, Home, DollarSign, CreditCard, BarChart2, PlusCircle, Edit2, AlertCircle, Search, Settings, Calendar, ClipboardCheck, Menu, X, Wifi, WifiOff, Lock, ShieldCheck, Eye, EyeOff, Sun, Moon, Key, ChevronRight, Fingerprint, RefreshCw } from 'lucide-react';
+import { Users, User, TrendingUp, Sliders, Trash2, Activity, Home, DollarSign, CreditCard, BarChart2, PlusCircle, Edit2, AlertCircle, Search, Settings, Calendar, ClipboardCheck, Menu, X, Wifi, WifiOff, Lock, ShieldCheck, Eye, EyeOff, RefreshCw } from 'lucide-react';
 import type { Player, Payment, Expense, Game, AppConfig, PaymentConcept } from './types';
 import { isOlderThan24h } from './utils';
 import { DashboardTab } from './components/tabs/DashboardTab';
+
+type Team = AppConfig & {
+  id: string;
+  name: string;
+};
+
+type PaymentFormData = {
+  playerId: string;
+  amount: string;
+  description: string;
+  otherDescription: string;
+  abonoDescription: string;
+  notes: string;
+  responsible: string;
+  gameId: string;
+  eventDate: string;
+  conceptId?: string;
+};
+
+type EditModalType = 'player' | 'payment' | 'expense' | 'game' | '';
+
+type EditModalState = {
+  isOpen: boolean;
+  type: EditModalType;
+  data: Record<string, unknown> | null;
+};
+
+type OfflineAction = {
+  url: string;
+  method: 'POST' | 'PUT' | 'DELETE';
+  body: Record<string, unknown> | null;
+  teamId: string;
+};
+
+const isError = (value: unknown): value is Error => value instanceof Error;
 import { PlayersTab } from './components/tabs/PlayersTab';
 import { GamesTab } from './components/tabs/GamesTab';
 import { PaymentsTab } from './components/tabs/PaymentsTab';
@@ -38,7 +73,7 @@ const formatToInputDate = (dateString: string) => {
   return `${yyyy}-${mm}-${dd}`;
 };
 
-export const normalizeDate = (dateString: string) => {
+const normalizeDate = (dateString: string) => {
   if (!dateString) {
     const today = new Date().toISOString().split('T')[0];
     return today + 'T12:00:00.000Z';
@@ -66,7 +101,7 @@ const formatDate = (dateInput: string) => {
     const month = String(d.getUTCMonth() + 1).padStart(2, '0');
     const year = d.getUTCFullYear();
     return `${day}/${month}/${year}`;
-  } catch (e) {
+  } catch {
     return '';
   }
 };
@@ -122,12 +157,15 @@ const testServerUrl = async (baseUrl: string) => {
       console.warn(`[INFO] Status: ${response.status} | Tiempo: ${duration}ms\n`);
     }
     return response.ok;
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error(`❌ [ERROR] Falló la conexión con backend`);
     console.error(`[INFO] URL intentada: ${healthUrl}`);
-    console.error(`[INFO] Tipo de error: ${error?.name}`);
-    console.error(`[INFO] Mensaje: ${error?.message}`);
-    console.error(`[INFO] Detalles:`, error);
+    if (isError(error)) {
+      console.error(`[INFO] Tipo de error: ${error.name}`);
+      console.error(`[INFO] Mensaje: ${error.message}`);
+    } else {
+      console.error('[INFO] Error no reconocido:', error);
+    }
     console.error('\n');
     return false;
   }
@@ -200,7 +238,7 @@ function App() {
   useEffect(() => {
     console.log('App: Componente App inicializado');
     console.log('App: API URL configurada:', apiUrl, 'Fuente:', apiUrlSource);
-  }, []); // Solo se ejecuta una vez al montar el componente
+  }, [apiUrl, apiUrlSource]); // Solo se ejecuta una vez al montar el componente o cuando cambian la URL de API
 
   const API_URL = `${apiUrl}/api/players`;
   const PAYMENT_API_URL = `${apiUrl}/api/payments`;
@@ -209,7 +247,7 @@ function App() {
   const TEAM_API_URL = `${apiUrl}/api/teams`;
   const CONCEPT_API_URL = `${apiUrl}/api/payment-concepts`;
 
-  const [user, setUser] = useState<any>(null); // Auth State
+  const [user, setUser] = useState<Record<string, unknown> | null>(null); // Auth State
   const [activeTab, setActiveTab] = useState('Inicio');
   const [googleAuthFailed, setGoogleAuthFailed] = useState(false);
   const [googleAuthErrorMsg, setGoogleAuthErrorMsg] = useState('');
@@ -235,15 +273,17 @@ function App() {
     photo: ''
   });
 
-  const [paymentFormData, setPaymentFormData] = useState({
+  const [paymentFormData, setPaymentFormData] = useState<PaymentFormData>({
     playerId: '',
     amount: '',
     description: '',
     otherDescription: '',
     abonoDescription: '',
     notes: '',
+    responsible: '',
     gameId: '',
-    eventDate: ''
+    eventDate: '',
+    conceptId: ''
   });
 
   const [expenseFormData, setExpenseFormData] = useState({
@@ -251,7 +291,6 @@ function App() {
     otherCategory: '',
     amount: '',
     description: '',
-    receipt: '',
     eventDate: getTodayString(),
     responsible: ''
   });
@@ -262,7 +301,8 @@ function App() {
     time: '',
     location: '',
     result: 'Pendiente',
-    feePerPerson: ''
+    feePerPerson: '',
+    fieldPayment: ''
   });
 
   // Form Visibility States
@@ -271,55 +311,12 @@ function App() {
   const [showExpenseForm, setShowExpenseForm] = useState(false);
   const [showGameForm, setShowGameForm] = useState(false);
 
-  // PIN Security State - RESTORED & ENHANCED
-  const [isLocked, setIsLocked] = useState(() => !!localStorage.getItem('softball_app_pin'));
-  const [pinSetupMode, setPinSetupMode] = useState(false);
-  const [pinStep, setPinStep] = useState(1);
-  const [pinInput, setPinInput] = useState('');
-  const [pinConfirmInput, setPinConfirmInput] = useState('');
-  const [pinError, setPinError] = useState('');
-  const [changingPinMode, setChangingPinMode] = useState(false);
-  const [oldPinInput, setOldPinInput] = useState('');
-
-  // New Lock Screen UI States
-  const [showPin, setShowPin] = useState(false);
 
 
-  // Inactivity Timer - RESTORED
-  useEffect(() => {
-    let inactivityTimer: any;
-    const INACTIVITY_LIMIT = 5 * 60 * 1000;
 
-    const resetTimer = () => {
-      clearTimeout(inactivityTimer);
-      if (user && localStorage.getItem('softball_app_pin') && !isLocked && !pinSetupMode) {
-        inactivityTimer = setTimeout(() => {
-          setIsLocked(true);
-        }, INACTIVITY_LIMIT);
-      }
-    };
-
-    resetTimer();
-
-    const events = ['mousemove', 'keydown', 'touchstart', 'click'];
-    events.forEach(e => window.addEventListener(e, resetTimer));
-
-    return () => {
-      clearTimeout(inactivityTimer);
-      events.forEach(e => window.removeEventListener(e, resetTimer));
-    };
-  }, [user, isLocked, pinSetupMode]);
-
-  // PIN Setup - RESTORED
-  useEffect(() => {
-    if (user && !localStorage.getItem('softball_app_pin') && !pinSetupMode) {
-      setPinSetupMode(true);
-      setPinStep(1);
-    }
-  }, [user, pinSetupMode]);
 
   // Teams and Multi-Team State
-  const [teams, setTeams] = useState<any[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
   const [activeTeamId, setActiveTeamId] = useState<string>(localStorage.getItem('softball_active_team') || '');
   const [, setLoadingTeams] = useState(true);
 
@@ -351,7 +348,9 @@ function App() {
       try {
         await StatusBar.setBackgroundColor({ color: '#0f172a' });
         await StatusBar.setStyle({ style: Style.Dark });
-      } catch (e) { }
+      } catch (error) {
+        console.warn('App: adaptStatusBar no pudo inicializarse', error);
+      }
     };
     adaptStatusBar();
   }, []);
@@ -373,7 +372,7 @@ function App() {
   const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean, type: string, id: string }>({ isOpen: false, type: '', id: '' });
   const [confirmActionModal, setConfirmActionModal] = useState<{ isOpen: boolean, title: string, message: string, requiresInput?: boolean, inputLabel?: string, onConfirm: (val?: string) => void }>({ isOpen: false, title: '', message: '', onConfirm: () => { } });
   const [confirmActionInput, setConfirmActionInput] = useState('');
-  const [editModal, setEditModal] = useState<{ isOpen: boolean, type: string, data: any }>({ isOpen: false, type: '', data: null });
+  const [editModal, setEditModal] = useState<EditModalState>({ isOpen: false, type: '', data: null });
   const [securityChallenge, setSecurityChallenge] = useState<{ isOpen: boolean, onVerified: () => void }>({ isOpen: false, onVerified: () => { } });
   const [securityPasswordInput, setSecurityPasswordInput] = useState('');
   const [errorStatus, setErrorStatus] = useState<string | null>(null);
@@ -457,7 +456,7 @@ function App() {
       const d = new Date(dateString);
       if (isNaN(d.getTime())) return '';
       return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    } catch (e) { return ''; }
+    } catch { return ''; }
   };
 
   const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -494,7 +493,7 @@ function App() {
     }
 
     console.log(`[FETCH] Petición a: ${path} | Intentos: ${candidates.length}`);
-    let lastError: any = null;
+    let lastError: Error | unknown = null;
     for (let i = 0; i < candidates.length; i++) {
       const base = candidates[i];
       const url = buildApiUrl(base, path);
@@ -523,8 +522,12 @@ function App() {
         }
 
         return res;
-      } catch (err: any) {
-        console.error(`    ❌ Error: ${err?.message}`);
+      } catch (err: unknown) {
+        if (isError(err)) {
+          console.error(`    ❌ Error: ${err.message}`);
+        } else {
+          console.error('    ❌ Error desconocido:', err);
+        }
         lastError = err;
       }
     }
@@ -534,6 +537,7 @@ function App() {
   };
 
   // --- Sistema de Detección de Conexión Robusto ---
+  /* eslint-disable react-hooks/exhaustive-deps */
   useEffect(() => {
     console.log('App: Iniciando useEffect de detección de conexión');
     let isMounted = true;
@@ -600,9 +604,10 @@ function App() {
       clearInterval(interval);
     };
   }, [apiUrl]);
+  /* eslint-enable react-hooks/exhaustive-deps */
 
   // Inicializar cola offline desde localStorage
-  const [offlineSyncQueue, setOfflineSyncQueue] = useState<any[]>(() => {
+  const [offlineSyncQueue, setOfflineSyncQueue] = useState<OfflineAction[]>(() => {
     try {
       const saved = localStorage.getItem('softball_sync_queue');
       return saved ? JSON.parse(saved) : [];
@@ -620,7 +625,7 @@ function App() {
     });
     setFormData({ name: '', jerseyNumber: '', position: '', battingHand: 'Right', photo: '' });
     setExpenseFormData({ category: '', otherCategory: '', amount: '', description: '', receipt: '', eventDate: getTodayString(), responsible: '' });
-    setGameFormData({ opponent: '', eventDate: getTodayString(), time: '', location: '', result: 'Pendiente', feePerPerson: '' });
+    setGameFormData({ opponent: '', eventDate: getTodayString(), time: '', location: '', result: 'Pendiente', feePerPerson: '', fieldPayment: '' });
     setPaymentControlGameId('');
 
     // 2. Limpiar Búsquedas de Texto
@@ -653,6 +658,7 @@ function App() {
   const expenseCategories = ['Pago de Terreno', 'Comida', 'Utileria', 'Otro'];
 
   // Auth Effect
+  /* eslint-disable react-hooks/exhaustive-deps */
   useEffect(() => {
     console.log('App: Iniciando useEffect de autenticación');
     const initCapacitor = async () => {
@@ -678,7 +684,9 @@ function App() {
             setTimeout(() => processSyncQueue(), 1000);
           }
         }
-      } catch(e) {}
+      } catch (error) {
+        console.warn('App: Error parsing stored user', error);
+      }
     }
 
     const savedConfig = localStorage.getItem('softball_config');
@@ -686,10 +694,14 @@ function App() {
       try {
         const parsed = JSON.parse(savedConfig);
         if (parsed) setConfigRaw(parsed);
-      } catch(e) {}
+      } catch (error) {
+        console.warn('App: Error parsing saved config', error);
+      }
     }
+
     console.log('App: useEffect de autenticación completado');
   }, []);
+  /* eslint-enable react-hooks/exhaustive-deps */
 
   // Efecto para establecer la fecha del último juego como valor por defecto para nuevos pagos
   useEffect(() => {
@@ -702,13 +714,13 @@ function App() {
   }, [games, paymentFormData.eventDate]);
 
   useEffect(() => {
-    let listener: any;
+    let listener: { remove?: () => void } | undefined;
     const registerBackButton = async () => {
       listener = await CapApp.addListener('backButton', () => {
         if (isSettingsOpen) { setIsSettingsOpen(false); return; }
         if (newTeamModalOpen) { setNewTeamModalOpen(false); return; }
         if (deleteModal.isOpen) { setDeleteModal({ isOpen: false, type: '', id: '' }); return; }
-        if (confirmActionModal.isOpen) { setConfirmActionModal({ ...confirmActionModal, isOpen: false }); return; }
+        if (confirmActionModal.isOpen) { setConfirmActionModal((prev) => ({ ...prev, isOpen: false })); return; }
         if (editModal.isOpen) { setEditModal({ isOpen: false, type: '', data: null }); return; }
         if (quickPaymentModal.isOpen) { setQuickPaymentModal({ isOpen: false, player: null, gameDateStr: '', rawDate: '', opponent: '', amount: '' }); return; }
         if (isDateFilterModalOpen) { setIsDateFilterModalOpen(false); return; }
@@ -735,8 +747,9 @@ function App() {
     return () => {
       if (listener) listener.remove();
     };
-  }, [isSettingsOpen, newTeamModalOpen, deleteModal.isOpen, editModal.isOpen, quickPaymentModal.isOpen, isDateFilterModalOpen, isReportFilterModalOpen, isMobileMenuOpen, activeTab]);
+  }, [isSettingsOpen, newTeamModalOpen, deleteModal.isOpen, confirmActionModal.isOpen, editModal.isOpen, quickPaymentModal.isOpen, isDateFilterModalOpen, isReportFilterModalOpen, isMobileMenuOpen, activeTab]);
 
+  /* eslint-disable react-hooks/exhaustive-deps */
   useEffect(() => {
     console.log('App: useEffect de fetch datos - user:', !!user, 'activeTeamId:', activeTeamId);
     if (user && activeTeamId) {
@@ -750,6 +763,7 @@ function App() {
       console.log('App: No se ejecuta fetch - falta user o activeTeamId');
     }
   }, [user, activeTeamId]);
+  /* eslint-enable react-hooks/exhaustive-deps */
 
   useEffect(() => {
     const act = teams.find(t => t.id === activeTeamId);
@@ -808,11 +822,16 @@ function App() {
       if (isOnline) {
         setTimeout(() => processSyncQueue(), 500);
       }
-    } catch (err: any) {
-      console.error('Google Native Login Failed:', err);
-      const message = err.message || JSON.stringify(err);
-      setGoogleAuthFailed(true);
-      setGoogleAuthErrorMsg(message);
+    } catch (err: unknown) {
+      if (isError(err)) {
+        console.error('Google Native Login Failed:', err);
+        setGoogleAuthFailed(true);
+        setGoogleAuthErrorMsg(err.message);
+      } else {
+        console.error('Google Native Login Failed:', err);
+        setGoogleAuthFailed(true);
+        setGoogleAuthErrorMsg(String(err));
+      }
       alert(
         'Error Google Auth: ' + message + '\n\n' +
         'Registra los SHA-1 correctos para el paquete com.zeratyx.softball en Google Cloud.\n' +
@@ -838,7 +857,7 @@ function App() {
   };
 
   const logout = async () => {
-    try { await GoogleAuth.signOut(); } catch (e) { }
+    try { await GoogleAuth.signOut(); } catch (error) { console.warn('App: logout failed', error); }
     setUser(null);
     setPlayers([]);
     setPayments([]);
@@ -847,7 +866,7 @@ function App() {
     localStorage.removeItem('softball_user');
   };
 
-  const saveConfig = async (newConfig: any) => {
+  const saveConfig = async (newConfig: AppConfig) => {
     setConfigRaw(newConfig);
     localStorage.setItem('softball_config', JSON.stringify(newConfig));
     localStorage.setItem('softball_api_url', apiUrl);
@@ -858,7 +877,7 @@ function App() {
         name: newConfig.teamName,
         primaryColor: newConfig.primaryColor
       };
-      setTeams((prev: any[]) => {
+      setTeams((prev: Team[]) => {
         const next = prev.map(team => team.id === activeTeamId ? { ...team, ...updatedTeam } : team);
         localStorage.setItem('softball_teams', JSON.stringify(next));
         return next;
@@ -928,6 +947,7 @@ function App() {
   };
 
   // --- LÓGICA DE SINCRONIZACIÓN OFFLINE ---
+  /* eslint-disable react-hooks/exhaustive-deps */
   useEffect(() => {
     const savedQueue = localStorage.getItem('softball_sync_queue');
     if (savedQueue) {
@@ -938,8 +958,9 @@ function App() {
       }
     }
   }, []);
+  /* eslint-enable react-hooks/exhaustive-deps */
 
-  const saveToQueueAndStorage = (action: any) => {
+  const saveToQueueAndStorage = (action: OfflineAction) => {
     console.log('App: Guardando acción en cola:', action);
 
     // Convertir URL completa a relativa si es necesario
@@ -1048,9 +1069,10 @@ function App() {
   };
 
   // Auto-Sync background task: Corregir ella sola sin detener la app
+  /* eslint-disable react-hooks/exhaustive-deps */
   useEffect(() => {
     console.log('App: useEffect auto-sync - isOnline:', isOnline, 'queue length:', offlineSyncQueue.length);
-    let syncInterval: any;
+    let syncInterval: number | undefined;
 
     if (isOnline && offlineSyncQueue.length > 0) {
       console.log('App: Iniciando intervalo de sync automático');
@@ -1077,22 +1099,25 @@ function App() {
       }
     };
   }, [isOnline, offlineSyncQueue.length]); // Dependencias correctas
+  /* eslint-enable react-hooks/exhaustive-deps */
 
   // Efecto adicional para manejar cambios de online a offline y viceversa
+  /* eslint-disable react-hooks/exhaustive-deps */
   useEffect(() => {
     if (isOnline && offlineSyncQueue.length > 0 && !isSyncingRef.current) {
       console.log('App: Cambio a online detectado, intentando sync inmediato');
       setTimeout(() => processSyncQueue(), 1000);
     }
   }, [isOnline]); // Solo depende de isOnline
+  /* eslint-enable react-hooks/exhaustive-deps */
 
-  const fetchData = async (url: string, cacheKey: string, setter: any, setLoading: any) => {
+  const fetchData = async <T,>(url: string, cacheKey: string, setter: React.Dispatch<React.SetStateAction<T[]>>, setLoading?: (value: boolean) => void) => {
     const cached = localStorage.getItem(cacheKey);
     if (cached) {
-      setter(JSON.parse(cached));
+      setter(JSON.parse(cached) as T[]);
     } else if (!isOnline) {
       // No hay conexión y no hay caché: limpiar el estado para no mostrar datos de otro equipo
-      setter([]);
+      setter([] as T[]);
     }
 
     if (!isOnline) {
@@ -1105,10 +1130,10 @@ function App() {
       const res = await fetchWithFallback(url, { headers: getAuthHeaders() });
       if (res.ok) {
         const data = await res.json();
-        setter(data);
+        setter(data as T[]);
         localStorage.setItem(cacheKey, JSON.stringify(data));
       }
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('Fetch failed for ' + cacheKey, err);
     } finally {
       if (setLoading) setLoading(false);
@@ -1121,29 +1146,42 @@ function App() {
   const fetchGames = () => fetchData(`${apiUrl}/api/games`, `softball_games_${activeTeamId}`, setGames, setLoadingGames);
   const fetchPaymentConcepts = () => fetchData(`${apiUrl}/api/payment-concepts`, `softball_concepts_${activeTeamId}`, setPaymentConcepts, setLoadingConcepts);
 
-  const mutateData = async (url: string, method: string, payload: any, setList: any, cacheKey: string, successCallback: any): Promise<boolean> => {
+  const mutateData = async <T extends { id?: string }>(
+    url: string,
+    method: 'POST' | 'PUT' | 'DELETE',
+    payload: T | string,
+    setList: React.Dispatch<React.SetStateAction<T[]>>,
+    cacheKey: string,
+    successCallback: (success: boolean) => void
+  ): Promise<boolean> => {
     const handleOptimisticUpdate = (tempId: string) => {
-      setList((prev: any[]) => {
-        let optimisticList;
+      setList((prev) => {
+        let optimisticList: T[];
         if (method === 'DELETE') {
-          optimisticList = prev.filter((item: any) => item.id !== payload);
+          optimisticList = prev.filter((item) => item.id !== payload);
         } else if (method === 'PUT') {
-          optimisticList = prev.map((item: any) => item.id === payload.id ? { ...item, ...payload } : item);
+          const payloadObj = payload as T;
+          optimisticList = prev.map((item) => item.id === payloadObj.id ? { ...item, ...payloadObj } : item);
         } else {
-          const optimisticItem = { id: tempId, eventDate: payload.eventDate || new Date().toISOString(), ...payload };
-          optimisticList = [optimisticItem, ...prev];
+          const payloadObj = payload as T;
+          const optimisticItem = { id: tempId, eventDate: (payloadObj as Record<string, unknown>).eventDate || new Date().toISOString(), ...payloadObj } as T & { id: string };
+          optimisticList = [optimisticItem, ...prev] as T[];
         }
         localStorage.setItem(cacheKey, JSON.stringify(optimisticList));
         return optimisticList;
       });
     };
 
-    const actionUrl = method === 'DELETE' ? `${url}/${payload}` : method === 'PUT' ? `${url}/${payload.id}` : url;
+    const actionUrl = method === 'DELETE'
+      ? `${url}/${payload}`
+      : method === 'PUT'
+        ? `${url}/${(payload as T).id}`
+        : url;
 
     if (!isOnline) {
       const tempId = 'temp_' + Date.now() + Math.random().toString(36).substring(2, 5);
       handleOptimisticUpdate(tempId);
-      saveToQueueAndStorage({ url: actionUrl, method, body: method === 'DELETE' ? null : payload, teamId: activeTeamId });
+      saveToQueueAndStorage({ url: actionUrl, method, body: method === 'DELETE' ? null : (payload as T), teamId: activeTeamId });
       successCallback(true);
       return true;
     }
@@ -1159,22 +1197,22 @@ function App() {
       if (res.ok) {
         console.log('App: mutateData - Petición exitosa, procesando respuesta');
         if (method === 'DELETE') {
-          setList((prev: any[]) => {
-            const newList = prev.filter((item: any) => item.id !== payload);
+          setList((prev) => {
+            const newList = prev.filter((item) => item.id !== payload);
             localStorage.setItem(cacheKey, JSON.stringify(newList));
             return newList;
           });
         } else if (method === 'PUT') {
           const updatedItem = await res.json();
-          setList((prev: any[]) => prev.map((item: any) => item.id === updatedItem.id ? updatedItem : item));
+          setList((prev) => prev.map((item) => item.id === updatedItem.id ? updatedItem : item));
           setTimeout(() => {
             const current = JSON.parse(localStorage.getItem(cacheKey) || '[]');
-            const updated = current.map((item: any) => item.id === updatedItem.id ? updatedItem : item);
+            const updated = current.map((item: T) => item.id === updatedItem.id ? updatedItem : item);
             localStorage.setItem(cacheKey, JSON.stringify(updated));
           }, 0);
         } else {
           const newItem = await res.json();
-          setList((prev: any[]) => [newItem, ...prev]);
+          setList((prev) => [newItem, ...prev]);
           setTimeout(() => {
             const current = JSON.parse(localStorage.getItem(cacheKey) || '[]');
             localStorage.setItem(cacheKey, JSON.stringify([newItem, ...current]));
@@ -1190,12 +1228,13 @@ function App() {
         successCallback(false);
         return false;
       }
-    } catch (err: any) {
-      console.warn('App: mutateData - Error de red, guardando en cola:', err.message);
+    } catch (err: unknown) {
+      const errorMessage = isError(err) ? err.message : String(err);
+      console.warn('App: mutateData - Error de red, guardando en cola:', errorMessage);
       setIsOnline(false); // Fallback to offline status
       const tempId = 'temp_' + Date.now() + Math.random().toString(36).substring(2, 5);
       handleOptimisticUpdate(tempId);
-      saveToQueueAndStorage({ url: actionUrl, method, body: method === 'DELETE' ? null : payload, teamId: activeTeamId });
+      saveToQueueAndStorage({ url: actionUrl, method, body: method === 'DELETE' ? null : (payload as T), teamId: activeTeamId });
       successCallback(true);
       return true;
     }
@@ -1242,10 +1281,10 @@ function App() {
         setTeams(fetchedTeams);
         localStorage.setItem('softball_teams', JSON.stringify(fetchedTeams));
         if (fetchedTeams.length > 0) {
-          const stillExists = fetchedTeams.find((t: any) => t.id === activeTeamId);
+          const stillExists = fetchedTeams.find((t: Team) => t.id === activeTeamId);
           if (!stillExists) {
-            setActiveTeamId(fetchedTeams[0].id);
-            localStorage.setItem('softball_active_team', fetchedTeams[0].id);
+            setActiveTeamId((fetchedTeams[0] as Team).id);
+            localStorage.setItem('softball_active_team', (fetchedTeams[0] as Team).id);
           }
         }
       }
@@ -1256,6 +1295,7 @@ function App() {
     }
   };
 
+  /* eslint-disable react-hooks/exhaustive-deps */
   useEffect(() => {
     if (user) fetchTeams();
     // Re-usamos los helpers globales definidos arriba
@@ -1268,6 +1308,7 @@ function App() {
       fetchPaymentConcepts();
     }
   }, [activeTeamId, user]);
+  /* eslint-enable react-hooks/exhaustive-deps */
 
   // POST Handlers
   const handlePlayerSubmit = (e: React.FormEvent) => {
@@ -1281,10 +1322,12 @@ function App() {
 
   const handlePaymentSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!paymentFormData.playerId || !paymentFormData.amount) return;
+    if (!paymentFormData.amount) return;
 
-    const selectedPlayer = players.find(p => p.id === paymentFormData.playerId);
-    if (!selectedPlayer) return;
+    let selectedPlayer: Player | null = null;
+    if (paymentFormData.playerId) {
+      selectedPlayer = players.find((p) => p.id === paymentFormData.playerId) || null;
+    }
 
     let finalNotes = paymentFormData.notes;
     // Si es Pago de Play y se seleccionó un juego, armamos la nota para vincularlos automáticamente
@@ -1301,13 +1344,14 @@ function App() {
     }
 
     const payload = {
-      playerId: selectedPlayer.id,
-      playerName: selectedPlayer.name,
+      playerId: selectedPlayer ? selectedPlayer.id : null,
+      playerName: selectedPlayer ? selectedPlayer.name : '',
       amount: Number(paymentFormData.amount),
       description: paymentFormData.description === 'Otro' ? paymentFormData.otherDescription : paymentFormData.description,
       notes: finalNotes || '',
+      responsible: paymentFormData.responsible || '',
       eventDate: normalizeDate(paymentFormData.eventDate || getTodayString()),
-      conceptId: (paymentFormData as any).conceptId || null
+      conceptId: paymentFormData.conceptId || null
     };
 
 
@@ -1320,6 +1364,7 @@ function App() {
           otherDescription: '',
           abonoDescription: '',
           notes: '',
+          responsible: '',
           gameId: '',
           eventDate: paymentFormData.eventDate
         });
@@ -1327,28 +1372,6 @@ function App() {
     });
   };
 
-  const handleDeletePaymentsByDate = async (date: string, password: string): Promise<void> => {
-    if (!password || password !== config.adminPassword) {
-      throw new Error('Contraseña incorrecta');
-    }
-
-    const normalizedDate = getYYYYMMDD(date);
-    if (!normalizedDate) {
-      throw new Error('Fecha inválida');
-    }
-
-    const paymentsToDelete = payments.filter(payment => getYYYYMMDD(payment.eventDate) === normalizedDate);
-    if (paymentsToDelete.length === 0) {
-      return;
-    }
-
-    for (const payment of paymentsToDelete) {
-      const deleted = await mutateData(PAYMENT_API_URL, 'DELETE', payment.id, setPayments, `softball_payments_${activeTeamId}`, () => { });
-      if (!deleted) {
-        throw new Error('No se pudieron eliminar todos los pagos. Intenta de nuevo.');
-      }
-    }
-  };
 
   const handleDeletePayment = async (paymentId: string, password: string): Promise<void> => {
     if (!password || password !== config.adminPassword) {
@@ -1381,62 +1404,39 @@ function App() {
       category: finalCategory,
       amount: Number(expenseFormData.amount),
       description: expenseFormData.description,
-      receipt: expenseFormData.receipt || '',
       eventDate: normalizeDate(expenseFormData.eventDate || getTodayString()),
       responsible: expenseFormData.responsible || ''
     };
 
     const success = await mutateData(EXPENSE_API_URL, 'POST', payload, setExpenses, `softball_expenses_${activeTeamId}`, (success: boolean) => {
-      if (success) setExpenseFormData({ ...expenseFormData, amount: '', description: '', receipt: '', otherCategory: '', eventDate: getTodayString(), responsible: '' });
+      if (success) setExpenseFormData({ ...expenseFormData, amount: '', description: '', otherCategory: '', eventDate: getTodayString(), responsible: '' });
     });
 
     return success;
-  };
-
-  const handleDeleteExpensesByDate = async (date: string, password: string): Promise<void> => {
-    if (!password || password !== config.adminPassword) {
-      throw new Error('Contraseña incorrecta');
-    }
-
-    const normalizedDate = getYYYYMMDD(date);
-    if (!normalizedDate) {
-      throw new Error('Fecha inválida');
-    }
-
-    const expensesToDelete = expenses.filter(expense => getYYYYMMDD(expense.eventDate) === normalizedDate);
-    if (expensesToDelete.length === 0) {
-      return;
-    }
-
-    for (const expense of expensesToDelete) {
-      const deleted = await mutateData(EXPENSE_API_URL, 'DELETE', expense.id, setExpenses, `softball_expenses_${activeTeamId}`, () => { });
-      if (!deleted) {
-        throw new Error('No se pudieron eliminar todos los gastos. Intenta de nuevo.');
-      }
-    }
   };
 
   const handleGameSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!gameFormData.opponent || !gameFormData.eventDate) return;
 
-    const setGamesSorted = (update: any) => setGames((prev: any[]) => {
+    const setGamesSorted = (update: React.SetStateAction<Game[]>) => setGames((prev) => {
       const next = typeof update === 'function' ? update(prev) : update;
       return [...next].sort((a, b) => new Date(a.eventDate || a.date || 0).getTime() - new Date(b.eventDate || b.date || 0).getTime());
     });
 
     const payload = {
       ...gameFormData,
-      eventDate: normalizeDate(gameFormData.eventDate || getTodayString())
+      eventDate: normalizeDate(gameFormData.eventDate || getTodayString()),
+      fieldPayment: gameFormData.fieldPayment || ''
     };
 
     mutateData(GAME_API_URL, 'POST', payload, setGamesSorted, `softball_games_${activeTeamId}`, (success: boolean) => {
-      if (success) setGameFormData({ opponent: '', eventDate: getTodayString(), time: '', location: '', result: 'Pendiente', feePerPerson: '' });
+      if (success) setGameFormData({ opponent: '', eventDate: getTodayString(), time: '', location: '', result: 'Pendiente', feePerPerson: '', fieldPayment: '' });
     });
   };
 
-  const openEditModal = (type: string, data: any) => {
-    if ((type === 'payment' || type === 'expense') && isOlderThan24h(data.registrationDate)) {
+  const openEditModal = (type: EditModalType, data: Record<string, unknown>) => {
+    if ((type === 'payment' || type === 'expense') && isOlderThan24h(data.registrationDate as string)) {
       setSecurityChallenge({
         isOpen: true,
         onVerified: () => {
@@ -1455,16 +1455,16 @@ function App() {
       editModal.type === 'payment' ? PAYMENT_API_URL :
         editModal.type === 'expense' ? EXPENSE_API_URL : GAME_API_URL;
 
-    const setList = (update: any) => {
+    const setList = (update: React.SetStateAction<(Player | Payment | Expense | Game)[]>) => {
       if (editModal.type === 'game') {
-        setGames((prev: any[]) => {
-          const next = typeof update === 'function' ? update(prev) : update;
+        setGames((prev: Game[]) => {
+          const next = typeof update === 'function' ? (update as (prev: Game[]) => Game[])(prev) : update as Game[];
           return [...next].sort((a, b) => new Date(a.eventDate || a.date || 0).getTime() - new Date(b.eventDate || b.date || 0).getTime());
         });
       } else {
         const primarySetter = editModal.type === 'player' ? setPlayers :
           editModal.type === 'payment' ? setPayments : setExpenses;
-        primarySetter(update);
+        primarySetter(update as React.SetStateAction<Player[] | Payment[] | Expense[]>);
       }
     };
     const cacheKey = editModal.type === 'player' ? `softball_players_${activeTeamId}` : editModal.type === 'payment' ? `softball_payments_${activeTeamId}` : editModal.type === 'expense' ? `softball_expenses_${activeTeamId}` : `softball_games_${activeTeamId}`;
@@ -1501,16 +1501,16 @@ function App() {
     const { type, id } = deleteModal;
     const url = type === 'player' ? API_URL : type === 'payment' ? PAYMENT_API_URL : type === 'expense' ? EXPENSE_API_URL : GAME_API_URL;
 
-    const setList = (update: any) => {
+    const setList = (update: React.SetStateAction<(Player | Payment | Expense | Game)[]>) => {
       if (type === 'game') {
-        setGames((prev: any[]) => {
-          const next = typeof update === 'function' ? update(prev) : update;
+        setGames((prev: Game[]) => {
+          const next = typeof update === 'function' ? (update as (prev: Game[]) => Game[])(prev) : update as Game[];
           return [...next].sort((a, b) => new Date(a.eventDate).getTime() - new Date(b.eventDate).getTime());
         });
       } else {
         const primarySetter = type === 'player' ? setPlayers :
           type === 'payment' ? setPayments : setExpenses;
-        primarySetter(update);
+        primarySetter(update as React.SetStateAction<Player[] | Payment[] | Expense[]>);
       }
     };
     const cacheKey = type === 'player' ? `softball_players_${activeTeamId}` : type === 'payment' ? `softball_payments_${activeTeamId}` : type === 'expense' ? `softball_expenses_${activeTeamId}` : `softball_games_${activeTeamId}`;
@@ -1816,62 +1816,7 @@ function App() {
                   </select>
                 </div>
 
-                <div className="form-group" style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-                  <label className="form-label">PIN de Seguridad (Bloqueo por Inactividad)</label>
-                  {!changingPinMode ? (
-                    <button className="btn-secondary" onClick={() => {
-                      setChangingPinMode(true); setPinStep(0); setPinError(''); setOldPinInput(''); setPinInput(''); setPinConfirmInput('');
-                    }}>Modificar PIN Numérico</button>
-                  ) : (
-                    <div style={{ background: 'rgba(0,0,0,0.2)', padding: '1rem', borderRadius: '8px' }}>
-                      {pinStep === 0 && (
-                        <>
-                          <label className="form-label" style={{ color: '#94a3b8' }}>Ingresa el PIN actual:</label>
-                          <input type="password" pattern="[0-9]*" inputMode="numeric" maxLength={4} className="input-field" value={oldPinInput} onChange={e => setOldPinInput(e.target.value.replace(/[^0-9]/g, ''))} style={{ letterSpacing: '10px', textAlign: 'center', fontSize: '1.5rem' }} autoFocus />
-                          <button className="btn-primary" onClick={() => {
-                            if (oldPinInput === localStorage.getItem('softball_app_pin')) {
-                              setPinStep(1); setPinError('');
-                            } else {
-                              setPinError('El PIN actual es incorrecto');
-                            }
-                          }} style={{ marginTop: '0.8rem' }}>Verificar</button>
-                        </>
-                      )}
-                      {pinStep === 1 && (
-                        <>
-                          <label className="form-label" style={{ color: '#38bdf8' }}>Ingresa el NUEVO PIN (4 dígitos):</label>
-                          <input type="password" pattern="[0-9]*" inputMode="numeric" maxLength={4} className="input-field" value={pinInput} onChange={e => setPinInput(e.target.value.replace(/[^0-9]/g, ''))} style={{ border: '1px solid #38bdf8', letterSpacing: '10px', textAlign: 'center', fontSize: '1.5rem' }} autoFocus />
-                          <button className="btn-primary" onClick={() => {
-                            if (pinInput.length === 4) {
-                              setPinStep(2); setPinError('');
-                            } else {
-                              setPinError('Debe ingresar 4 dígitos');
-                            }
-                          }} style={{ marginTop: '0.8rem' }}>Siguiente</button>
-                        </>
-                      )}
-                      {pinStep === 2 && (
-                        <>
-                          <label className="form-label" style={{ color: '#22c55e' }}>Confirma el NUEVO PIN:</label>
-                          <input type="password" pattern="[0-9]*" inputMode="numeric" maxLength={4} className="input-field" value={pinConfirmInput} onChange={e => setPinConfirmInput(e.target.value.replace(/[^0-9]/g, ''))} style={{ border: '1px solid #22c55e', letterSpacing: '10px', textAlign: 'center', fontSize: '1.5rem' }} autoFocus />
-                          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.8rem', flexWrap: 'wrap' }}>
-                            <button className="btn-secondary" onClick={() => setPinStep(1)}>Atrás</button>
-                            <button className="btn-primary" onClick={() => {
-                              if (pinInput === pinConfirmInput) {
-                                localStorage.setItem('softball_app_pin', pinInput);
-                                setChangingPinMode(false); setPinError(''); alert('PIN actualizado con éxito');
-                              } else {
-                                setPinError('Los PINs no coinciden');
-                              }
-                            }}>Guardar PIN</button>
-                          </div>
-                        </>
-                      )}
-                      {pinError && <div style={{ color: '#ef4444', marginTop: '0.5rem', fontSize: '0.85rem', fontWeight: 'bold', textAlign: 'center' }}>{pinError}</div>}
-                      <button className="btn-icon" onClick={() => setChangingPinMode(false)} style={{ marginTop: '0.5rem', padding: '0.5rem', border: '1px solid rgba(239, 68, 68, 0.2)', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', width: '100%', borderRadius: '8px' }}>Cancelar</button>
-                    </div>
-                  )}
-                </div>
+                
 
                 <div className="form-group" style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
                   <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -2092,7 +2037,7 @@ function App() {
                       acc[p.playerId].total += p.amount;
                       return acc;
                     }, {} as Record<string, { name: string, total: number }>)
-                  ).sort((a: any, b: any) => b.total - a.total).map((p: any) => (
+                  ).sort((a, b) => b.total - a.total).map((p) => (
                     <div key={p.name} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.75rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
                       <span style={{ color: '#f8fafc', fontWeight: 'bold' }}>{p.name}</span>
                       <span style={{ color: '#22c55e', fontWeight: 'bold' }}>{formatCurrency(p.total)}</span>
@@ -2163,6 +2108,7 @@ function App() {
                           <option value="Pendiente">Pendiente</option><option value="Victoria">Victoria</option><option value="Derrota">Derrota</option><option value="Empate">Empate</option><option value="Suspendido">Suspendido</option>
                         </select>
                       </div>
+                      <div className="form-group"><label className="form-label">Pago de terreno ($)</label><input className="input-field" type="number" step="0.01" value={editModal.data.fieldPayment || ''} onChange={(e) => setEditModal({ ...editModal, data: { ...editModal.data, fieldPayment: e.target.value } })} /></div>
                     </>
                   )}
                 </form>
@@ -2190,7 +2136,7 @@ function App() {
                   <span style={{ fontSize: '0.9rem', color: '#94a3b8' }}>Juego: Vs {quickPaymentModal.opponent} ({quickPaymentModal.gameDateStr})</span>
                 </p>
                 <div className="form-group">
-                  <label className="form-label">Monto ($):</label>
+                  <label className="form-label">Monto por juego ($):</label>
                   <input
                     type="number"
                     min="1"
@@ -2199,6 +2145,8 @@ function App() {
                     value={quickPaymentModal.amount}
                     onChange={(e) => setQuickPaymentModal({ ...quickPaymentModal, amount: e.target.value })}
                     autoFocus
+                    readOnly={quickPaymentModal.amount !== ''}
+                    placeholder={quickPaymentModal.amount === '' ? 'Ingresa el monto' : ''}
                   />
                 </div>
               </div>
@@ -2292,9 +2240,18 @@ function App() {
                     <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '1rem', color: config.primaryColor }}>
                       <User size={18} /> {t('Por Jugador', config.language)}
                     </label>
-                    <select className="input-field" value={tempReportPlayerFilter} onChange={e => setTempReportPlayerFilter(e.target.value)}>
+                    <select 
+                      className="input-field" 
+                      value={tempReportPlayerFilter} 
+                      onChange={e => setTempReportPlayerFilter(e.target.value)}
+                      style={{ colorScheme: 'dark' }}
+                    >
                       <option value="">{t('Ver Todos los Jugadores', config.language)}</option>
-                      {[...players].sort((a, b) => a.name.localeCompare(b.name)).map(p => <option key={p.id} value={p.id}>{p.name} (#{p.jerseyNumber})</option>)}
+                      {[...players].sort((a, b) => a.name.localeCompare(b.name)).map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name} (#{p.jerseyNumber})
+                        </option>
+                      ))}
                     </select>
                   </div>
 
@@ -2559,7 +2516,6 @@ function App() {
             expenses={expenses}
             formatCurrency={formatCurrency}
             openEditModal={openEditModal}
-            onDeleteExpensesByDate={handleDeleteExpensesByDate}
             showForm={showExpenseForm}
             setShowForm={setShowExpenseForm}
           />
@@ -2591,7 +2547,6 @@ function App() {
             deleteConcept={deleteConcept}
             formatCurrency={formatCurrency}
             openEditModal={openEditModal}
-            onDeletePaymentsByDate={handleDeletePaymentsByDate}
             onDeletePayment={handleDeletePayment}
             showForm={showPaymentForm}
             setShowForm={setShowPaymentForm}
@@ -2626,12 +2581,14 @@ function App() {
             payments={payments}
             setPayments={setPayments}
             players={players}
+            games={games}
             activeTeamId={activeTeamId}
             PAYMENT_API_URL={PAYMENT_API_URL}
             saveToQueueAndStorage={saveToQueueAndStorage}
             getAuthHeaders={getAuthHeaders}
             formatCurrency={formatCurrency}
             formatDate={formatDate}
+            normalizeDate={normalizeDate}
           />
         );
       case 'Reportes':
@@ -2663,249 +2620,9 @@ function App() {
     }
   };
 
-  // Handles PIN Unlock / Setup and Forgotten PIN
-  const handleForgotPin = async () => {
-    if (confirm("Se cerrará tu sesión por seguridad. Deberás volver a autorizar tu cuenta con Google. Una vez iniciada sesión, podrás configurar un PIN nuevo. ¿Deseas continuar?")) {
-      localStorage.removeItem('softball_app_pin');
-      setIsLocked(false);
-      setPinSetupMode(false);
-      setPinInput('');
-      await logout();
-    }
-  };
+  
 
-  if (user && (isLocked || pinSetupMode)) {
-    const isSetup = pinSetupMode;
-    const isConfirming = pinStep === 2;
-    const primaryGradient = `linear-gradient(135deg, ${config.primaryColor}, #8b5cf6)`;
-
-    return (
-      <div className="premium-lock-screen" style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        minHeight: '100vh',
-        padding: '1.5rem',
-        textAlign: 'center',
-        background: `radial-gradient(circle at top left, ${config.primaryColor}22, transparent 40%), radial-gradient(circle at bottom right, #8b5cf622, transparent 40%), #0f172a`,
-        position: 'relative',
-        overflow: 'hidden'
-      }}>
-        {/* Animated Background Orbs */}
-        <div style={{ position: 'absolute', top: '-10%', right: '-10%', width: '400px', height: '400px', background: config.primaryColor, filter: 'blur(120px)', opacity: 0.1, borderRadius: '50%', animation: 'pulse 8s infinite alternate' }}></div>
-        <div style={{ position: 'absolute', bottom: '-10%', left: '-10%', width: '400px', height: '400px', background: '#8b5cf6', filter: 'blur(120px)', opacity: 0.1, borderRadius: '50%', animation: 'pulse 10s infinite alternate-reverse' }}></div>
-
-        <div style={{ animation: 'fadeInDown 0.8s ease-out', marginBottom: '2rem', zIndex: 10 }}>
-          <div style={{
-            background: 'rgba(255,255,255,0.03)',
-            padding: '1.25rem',
-            borderRadius: '24px',
-            backdropFilter: 'blur(10px)',
-            border: '1px solid rgba(255,255,255,0.1)',
-            boxShadow: '0 20px 40px rgba(0,0,0,0.3)',
-            display: 'inline-block'
-          }}>
-            <img src="/logo.png" alt="ZeratyX" style={{ height: '70px', objectFit: 'contain' }} />
-          </div>
-        </div>
-
-        <div className="glass-panel" style={{
-          width: '100%',
-          maxWidth: '400px',
-          padding: '2.5rem 2rem',
-          borderRadius: '32px',
-          border: '1px solid rgba(255,255,255,0.15)',
-          background: 'rgba(255,255,255,0.02)',
-          backdropFilter: 'blur(20px)',
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
-          zIndex: 10,
-          animation: 'fadeInUp 0.8s ease-out'
-        }}>
-          <div style={{
-            width: '64px',
-            height: '64px',
-            background: `${config.primaryColor}22`,
-            borderRadius: '20px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            margin: '0 auto 1.5rem',
-            border: `1px solid ${config.primaryColor}44`,
-            boxShadow: `0 0 20px ${config.primaryColor}22`
-          }}>
-            <ShieldCheck size={32} color={config.primaryColor} />
-          </div>
-
-          <h2 style={{ fontSize: '1.75rem', fontWeight: '800', color: '#f8fafc', marginBottom: '0.75rem', letterSpacing: '-0.025em' }}>
-            {isSetup ? (isConfirming ? 'Confirma tu Acceso' : 'Crea tu Seguridad') : 'Panel Protegido'}
-          </h2>
-
-          <p style={{ color: '#94a3b8', fontSize: '1rem', lineHeight: '1.5', marginBottom: '2rem' }}>
-            {isSetup
-              ? 'Establece un PIN de 4 dígitos para proteger la información de tu equipo.'
-              : 'La aplicación se ha bloqueado por inactividad para proteger tus datos.'}
-          </p>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-            {/* Input para PIN */}
-            <div className="form-group" style={{ margin: 0 }}>
-              <label className="form-label" style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'left', display: 'block', marginBottom: '0.5rem' }}>
-                PIN de Seguridad (4 dígitos)
-              </label>
-              <div style={{ position: 'relative' }}>
-                <Lock size={18} color="#94a3b8" style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', zIndex: 5 }} />
-                <input
-                  type={showPin ? "text" : "password"}
-                  pattern="[0-9]*"
-                  inputMode="numeric"
-                  maxLength={4}
-                  placeholder="••••"
-                  value={isSetup ? (isConfirming ? pinConfirmInput : pinInput) : pinInput}
-                  onChange={e => {
-                    const val = e.target.value.replace(/[^0-9]/g, '');
-                    if (isSetup) {
-                      if (!isConfirming) setPinInput(val);
-                      else setPinConfirmInput(val);
-                    } else {
-                      setPinInput(val);
-                    }
-                  }}
-                  className="input-field"
-                  style={{
-                    paddingLeft: '3rem',
-                    fontSize: '1.5rem',
-                    letterSpacing: '10px',
-                    textAlign: 'center',
-                    border: pinError ? '1px solid #ef4444' : '1px solid rgba(255,255,255,0.1)',
-                    background: 'rgba(0,0,0,0.2)'
-                  }}
-                  autoFocus
-                />
-                <button
-                  onClick={() => setShowPin(!showPin)}
-                  style={{ position: 'absolute', right: '1rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', zIndex: 5 }}
-                >
-                  {showPin ? <EyeOff size={20} /> : <Eye size={20} />}
-                </button>
-              </div>
-            </div>
-
-            {pinError && (
-              <div style={{
-                color: '#ef4444',
-                fontSize: '0.85rem',
-                fontWeight: '600',
-                background: 'rgba(239, 68, 68, 0.1)',
-                padding: '0.75rem',
-                borderRadius: '12px',
-                border: '1px solid rgba(239, 68, 68, 0.2)',
-                animation: 'shake 0.4s ease'
-              }}>
-                {pinError}
-              </div>
-            )}
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.5rem' }}>
-              <button
-                className="btn-primary"
-                style={{
-                  padding: '1.1rem',
-                  fontSize: '1rem',
-                  fontWeight: '800',
-                  background: primaryGradient,
-                  boxShadow: `0 10px 20px ${config.primaryColor}33`,
-                  borderRadius: '16px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '0.75rem'
-                }}
-                onClick={() => {
-                  if (isSetup) {
-                    if (!isConfirming) {
-                      if (pinInput.length === 4) { setPinStep(2); setPinError(''); setPinConfirmInput(''); }
-                      else { setPinError('Ingresa 4 dígitos numéricos.'); }
-                    } else {
-                      if (pinInput === pinConfirmInput) {
-                        localStorage.setItem('softball_app_pin', pinInput);
-                        setPinSetupMode(false);
-                        setPinError('');
-                        alert("Seguridad configurada con éxito.");
-                      } else {
-                        setPinError('Los códigos no coinciden. Intenta de nuevo.');
-                        setPinConfirmInput('');
-                      }
-                    }
-                  } else {
-                    // Unlock logic (PIN or Password)
-                    if (pinInput === localStorage.getItem('softball_app_pin')) {
-                      setIsLocked(false);
-                      setPinInput('');
-                      setPinError('');
-                    } else {
-                      setPinError('PIN incorrecto. Vuelve a intentar.');
-                      setPinInput('');
-                    }
-                  }
-                }}
-              >
-                <ChevronRight size={20} />
-                {isSetup ? (isConfirming ? 'Guardar Seguridad' : 'Continuar') : 'Desbloquear App'}
-              </button>
-
-              {!isSetup && (
-                <button
-                  className="btn-secondary"
-                  style={{
-                    padding: '1rem',
-                    borderRadius: '16px',
-                    background: 'rgba(255,255,255,0.05)',
-                    color: '#e2e8f0',
-                    border: '1px solid rgba(255,255,255,0.1)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '0.75rem'
-                  }}
-                >
-                  <Fingerprint size={20} color="#94a3b8" />
-                  Usar huella digital
-                </button>
-              )}
-
-              {isSetup && isConfirming && (
-                <button
-                  className="btn-secondary"
-                  onClick={() => setPinStep(1)}
-                  style={{ border: 'none', background: 'transparent', color: '#94a3b8', textDecoration: 'underline' }}
-                >
-                  Regresar
-                </button>
-              )}
-            </div>
-
-            {!isSetup && (
-              <button
-                className="btn-secondary"
-                style={{ marginTop: '1rem', color: '#64748b', border: 'none', background: 'transparent', fontSize: '0.85rem', textDecoration: 'underline' }}
-                onClick={handleForgotPin}
-              >
-                ¿Olvidaste tu acceso de seguridad?
-              </button>
-            )}
-          </div>
-
-          <div style={{ marginTop: '2rem', paddingTop: '1.5rem', borderTop: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
-            <ShieldCheck size={14} color="#22c55e" />
-            <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: '500' }}>Tu información está protegida</span>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  console.log('App: Renderizando componente principal - user:', !!user, 'isLocked:', isLocked, 'pinSetupMode:', pinSetupMode, 'isOnline:', isOnline);
+  console.log('App: Renderizando componente principal - user:', !!user, 'isOnline:', isOnline);
   return (
     <div>
 

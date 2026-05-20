@@ -19,7 +19,6 @@ interface PaymentsTabProps {
   handleConceptSubmit: (name: string, amount: number) => void;
   deleteConcept: (id: string) => void;
   openEditModal?: (type: string, data: any) => void;
-  onDeletePaymentsByDate?: (date: string, password: string) => Promise<void>;
   onDeletePayment?: (paymentId: string, password: string) => Promise<void>;
   showForm: boolean;
   setShowForm: (val: boolean) => void;
@@ -39,7 +38,6 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
   handleConceptSubmit,
   deleteConcept,
   openEditModal,
-  onDeletePaymentsByDate,
   onDeletePayment,
   showForm,
   setShowForm
@@ -50,8 +48,8 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
   const [newConceptData, setNewConceptData] = useState({ name: '', amount: '' });
   const [addingAbonoFor, setAddingAbonoFor] = useState<string | null>(null);
   const [abonoAmount, setAbonoAmount] = useState('');
-  const [dateFilter, setDateFilter] = useState('');
-  const [deleteByDateModal, setDeleteByDateModal] = useState({ isOpen: false, date: '', loading: false });
+  const [selectedResponsible, setSelectedResponsible] = useState<string | null>(null);
+  const [showResponsibleMenu, setShowResponsibleMenu] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
   const [deleteError, setDeleteError] = useState('');
   const [showDeletePassword, setShowDeletePassword] = useState(false);
@@ -116,20 +114,7 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
           setPaymentFormData({...paymentFormData, conceptId: null, description: 'Pago Individual'});
           setTimeout(() => handlePaymentSubmit(e), 0);
         }}>
-        <div className="form-group">
-          <label className="form-label">{t('Jugador', config.language)}</label>
-          <select 
-            className="input-field" 
-            value={paymentFormData.playerId} 
-            onChange={e => setPaymentFormData({ ...paymentFormData, playerId: e.target.value })} 
-            required
-          >
-            <option value="" disabled>{t('Seleccione un jugador', config.language)}</option>
-            {[...players].sort((a,b) => a.name.localeCompare(b.name)).map(p => (
-              <option key={p.id} value={p.id}>{p.name} - #{p.jerseyNumber}</option>
-            ))}
-          </select>
-        </div>
+        {/* Jugador field removed per request */}
         
         <div className="form-group">
           <label className="form-label">{t('Monto ($)', config.language)}</label>
@@ -168,10 +153,22 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
           />
         </div>
 
+        <div className="form-group">
+          <label className="form-label">{t('Responsable', config.language)}</label>
+          <input
+            type="text"
+            className="input-field"
+            placeholder="Ej. Juan Perez"
+            value={paymentFormData.responsible || ''}
+            onChange={e => setPaymentFormData({ ...paymentFormData, responsible: e.target.value })}
+            required
+          />
+        </div>
+
         <button type="submit" className="btn-primary" style={{ background: `linear-gradient(135deg, #22c55e 0%, #16a34a 100%)` }}>
           <DollarSign size={20} /> {t('Registrar Pago', config.language)}
         </button>
-        <button type="button" onClick={() => { setShowForm(false); setPaymentFormData({ playerId: '', amount: '', eventDate: new Date().toISOString().split('T')[0], notes: '' }); }} className="btn-secondary" style={{ marginTop: '0.5rem' }}>
+        <button type="button" onClick={() => { setShowForm(false); setPaymentFormData({ playerId: '', amount: '', eventDate: new Date().toISOString().split('T')[0], notes: '', responsible: '' }); }} className="btn-secondary" style={{ marginTop: '0.5rem' }}>
           {t('Cancelar', config.language)}
         </button>
         </form>
@@ -189,8 +186,9 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
 
   const renderIndividualView = () => {
     const individualPayments = filteredPayments.filter(p => !p.conceptId);
-    const filteredByDate = dateFilter ? individualPayments.filter(p => p.eventDate.includes(dateFilter)) : individualPayments;
-    const recentPayments = filteredByDate.sort((a, b) => new Date(b.eventDate).getTime() - new Date(a.eventDate).getTime()).slice(0, dateFilter ? undefined : 5);
+    const responsibles = Array.from(new Set(individualPayments.map(p => p.responsible || '').filter(Boolean))).sort((a, b) => a.localeCompare(b));
+    const filteredByResponsible = selectedResponsible ? individualPayments.filter(p => (p.responsible || '') === selectedResponsible) : individualPayments;
+    const recentPayments = filteredByResponsible.sort((a, b) => new Date(b.eventDate).getTime() - new Date(a.eventDate).getTime()).slice(0, selectedResponsible ? undefined : 5);
 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', width: '100%', gridColumn: '1 / -1' }}>
@@ -201,39 +199,46 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
             <Activity size={22} /> {t('Historial de Pagos Individuales', config.language)}
           </h3>
           
-          <div className="form-group" style={{ marginBottom: '1rem' }}>
-            <label className="form-label">{t('Filtrar por Fecha', config.language)}</label>
-            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-              <input 
-                type="date" 
-                className="input-field" 
-                value={dateFilter} 
-                onChange={e => setDateFilter(e.target.value)} 
-                style={{ colorScheme: 'dark', flex: 1 }} 
-              />
-              {dateFilter && (
-                <button
-                  type="button"
-                  onClick={() => setDeleteByDateModal({ isOpen: true, date: dateFilter, loading: false })}
-                  className="btn-icon"
-                  title="Eliminar todos los pagos de esta fecha"
-                  style={{
-                    padding: '0.75rem',
-                    background: 'rgba(34, 197, 94, 0.1)',
-                    border: '1px solid rgba(34, 197, 94, 0.2)',
-                    borderRadius: '12px',
-                    color: '#22c55e',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.4rem',
-                    whiteSpace: 'nowrap'
-                  }}
-                >
-                  <Trash2 size={16} /> {t('Eliminar todo', config.language)}
-                </button>
-              )}
-            </div>
+          <div className="form-group" style={{ marginBottom: '1rem', position: 'relative' }}>
+            <label className="form-label">{t('Responsables', config.language)}</label>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => setShowResponsibleMenu(prev => !prev)}
+              style={{ width: '100%', justifyContent: 'space-between', display: 'flex', alignItems: 'center' }}
+            >
+              {selectedResponsible || t('Seleccionar responsable', config.language)}
+              <span style={{ transform: showResponsibleMenu ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>▾</span>
+            </button>
+            {showResponsibleMenu && (
+              <div style={{ position: 'absolute', zIndex: 10, top: '100%', left: 0, right: 0, background: '#0f172a', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '12px', marginTop: '0.5rem', maxHeight: '220px', overflowY: 'auto' }}>
+                {responsibles.length === 0 ? (
+                  <div style={{ padding: '0.75rem', color: '#94a3b8' }}>{t('No hay responsables registrados', config.language)}</div>
+                ) : (
+                  responsibles.map(responsible => (
+                    <button
+                      key={responsible}
+                      type="button"
+                      onClick={() => { setSelectedResponsible(responsible); setShowResponsibleMenu(false); }}
+                      className="btn-secondary"
+                      style={{ width: '100%', textAlign: 'left', padding: '0.75rem 1rem', border: 'none', background: 'transparent', color: '#f8fafc' }}
+                    >
+                      {responsible}
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+            {selectedResponsible && (
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setSelectedResponsible(null)}
+                style={{ marginTop: '0.75rem', width: '100%' }}
+              >
+                {t('Mostrar todos', config.language)}
+              </button>
+            )}
           </div>
           
           {recentPayments.length === 0 ? (
@@ -251,6 +256,7 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
                       <div>
                         <div style={{ fontWeight: 'bold', color: '#f8fafc' }}>{player?.name || 'Jugador desconocido'}</div>
                         <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>{payment.notes || payment.description}</div>
+                        {payment.responsible && <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Responsable: {payment.responsible}</div>}
                         <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{new Date(payment.eventDate).toLocaleDateString(config.language === 'es' ? 'es-ES' : 'en-US')}</div>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -290,26 +296,6 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
         </div>
       </div>
     );
-  };
-
-  const handleDeleteByDate = async () => {
-    if (!deletePassword) {
-      setDeleteError('Ingresa la contraseña');
-      return;
-    }
-
-    try {
-      setDeleteByDateModal({ ...deleteByDateModal, loading: true });
-      await onDeletePaymentsByDate?.(deleteByDateModal.date, deletePassword);
-      setDeleteByDateModal({ isOpen: false, date: '', loading: false });
-      setDeletePassword('');
-      setDeleteError('');
-      setShowDeletePassword(false);
-    } catch (err: any) {
-      setDeleteError(err.message || 'Error al eliminar pagos');
-    } finally {
-      setDeleteByDateModal(prev => ({ ...prev, loading: false }));
-    }
   };
 
   const handleDeletePayment = async () => {
@@ -619,51 +605,6 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
       )}
 
       {/* Delete by Date Modal */}
-      {deleteByDateModal.isOpen && (
-        <div className="modal-overlay" style={{ zIndex: 4000 }}>
-          <div className="modal-content" style={{ maxWidth: '380px', border: `1px solid ${config.primaryColor}30` }}>
-            <div className="modal-header" style={{ borderBottom: 'none', paddingBottom: 0 }}>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', gap: '0.5rem' }}>
-                <div style={{ background: `${config.primaryColor}15`, padding: '1rem', borderRadius: '50%' }}>
-                  <Lock size={32} color={config.primaryColor} />
-                </div>
-                <h3 className="modal-title" style={{ textAlign: 'center' }}>Eliminar Pagos por Fecha</h3>
-                <p style={{ color: '#94a3b8', fontSize: '0.85rem', textAlign: 'center', margin: 0 }}>Se eliminarán todos los pagos del {new Date(deleteByDateModal.date).toLocaleDateString(config.language === 'es' ? 'es-ES' : 'en-US')}. Esta acción requiere contraseña administrativa.</p>
-              </div>
-            </div>
-            <div className="modal-body" style={{ paddingTop: '1.5rem' }}>
-              <div className="form-group">
-                <div style={{ position: 'relative' }}>
-                  <input
-                    type={showDeletePassword ? "text" : "password"}
-                    className="input-field"
-                    value={deletePassword}
-                    onChange={e => { setDeletePassword(e.target.value); setDeleteError(''); }}
-                    placeholder="Contraseña administrativa"
-                    autoFocus
-                    style={{ textAlign: 'center', fontSize: '1.1rem', letterSpacing: deletePassword && !showDeletePassword ? '4px' : 'normal' }}
-                  />
-                  <button type="button" onClick={() => setShowDeletePassword(!showDeletePassword)} style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
-                    {showDeletePassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                </div>
-                {deleteError && <p style={{ color: '#ef4444', fontSize: '0.8rem', textAlign: 'center', marginTop: '0.5rem', fontWeight: 'bold' }}>{deleteError}</p>}
-              </div>
-              <button
-                className="btn-primary"
-                style={{ background: config.primaryColor, width: '100%', marginTop: '0.5rem' }}
-                onClick={handleDeleteByDate}
-                disabled={deleteByDateModal.loading}
-              >
-                {deleteByDateModal.loading ? 'Eliminando...' : 'Confirmar Eliminación'}
-              </button>
-            </div>
-            <div className="modal-footer" style={{ borderTop: 'none', justifyContent: 'center' }}>
-              <button className="btn-secondary" style={{ border: 'none' }} onClick={() => { setDeleteByDateModal({ isOpen: false, date: '', loading: false }); setDeletePassword(''); setDeleteError(''); setShowDeletePassword(false); }}>Cancelar</button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Delete Individual Payment Modal */}
       {deletePaymentModal.isOpen && deletePaymentModal.payment && (
