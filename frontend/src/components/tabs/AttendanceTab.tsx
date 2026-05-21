@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ClipboardCheck, Trash2, Search, Calendar, ChevronDown, ChevronUp } from 'lucide-react';
 import { t } from '../../translations';
 import type { Game, Player, Payment, AppConfig } from '../../types';
@@ -17,6 +17,8 @@ type MutateFunction = (url: string, method: string, payload: unknown, setter: Re
 interface AttendanceTabProps {
   config: AppConfig;
   games: Game[];
+  setGames: React.Dispatch<React.SetStateAction<Game[]>>;
+  GAME_API_URL: string;
   paymentControlGameId: string;
   setPaymentControlGameId: (val: string) => void;
   players: Player[];
@@ -28,7 +30,7 @@ interface AttendanceTabProps {
   formatDate: (dateString: string) => string;
   formatCurrency: (val: number) => string;
   normalizeDate: (dateString: string) => string;
-  handleQuickPayment: (player: Player, gameDateStr: string, gameOpponent: string, rawDate: string, gameFee?: number | string) => void;
+  handleQuickPayment: (player: Player, gameId: string, gameDateStr: string, gameOpponent: string, rawDate: string, gameFee?: number | string, fieldFee?: number | string) => void;
   setConfirmActionModal: (val: ConfirmActionModal) => void;
   setConfirmActionInput: (val: string) => void;
   confirmDelete: (type: string, id: string) => void;
@@ -37,6 +39,8 @@ interface AttendanceTabProps {
 export const AttendanceTab: React.FC<AttendanceTabProps> = ({
   config,
   games,
+  setGames,
+  GAME_API_URL,
   paymentControlGameId,
   setPaymentControlGameId,
   players,
@@ -55,6 +59,79 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
 }) => {
   const [isGameListOpen, setIsGameListOpen] = useState(false);
   const [showAll, setShowAll] = useState(false);
+
+  useEffect(() => {
+    if (!paymentControlGameId) return;
+    const selectedGame = games.find(g => g.id === paymentControlGameId);
+    if (selectedGame) {
+      updateGameTotals(selectedGame);
+    }
+    // Recalculate whenever payments or games change
+  }, [paymentControlGameId, payments, games]);
+
+  const updateGameTotals = (game: Game) => {
+    if (!game) return;
+    // Recalcula total desde pagos actuales
+    const total = payments.reduce((sum, p) => {
+      if ((p.gameId && p.gameId === game.id) || (p.notes && p.notes.includes(`Vs ${game.opponent}`))) {
+        if (['Pago de Play', 'Pago Triangular', 'Pago Cuadrangular', 'Pago Torneo'].includes(p.description)) {
+          return sum + (Number(p.amount) || 0);
+        }
+      }
+      return sum;
+    }, 0);
+    const terreno = Number(game.fieldPayment || 0);
+    const surplus = total - terreno;
+
+    const updated = { ...game, collectedTotal: total, surplus } as Game & { id: string };
+    // Persistir en backend la información del juego
+    mutateData(GAME_API_URL, 'PUT', updated, setGames, `softball_games_${activeTeamId}`, () => {});
+  };
+
+  const parseGameFee = (value: string | number | undefined): number => {
+    if (typeof value === 'number') return value;
+    if (!value) return 0;
+    const normalized = String(value).trim().replace(',', '.').replace(/[^0-9.-]/g, '');
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
+  const markPlayerPaid = (player: Player) => {
+    const selectedGame = games.find(g => g.id === paymentControlGameId);
+    if (!selectedGame) return;
+
+    const gameFee = parseGameFee(selectedGame.feePerPerson);
+    if (!gameFee || gameFee <= 0) {
+      alert('Debes registrar la cuota por juego del partido antes de marcar un pago.');
+      return;
+    }
+
+    // Evitar duplicados: existe un pago tipo 'Pago de Play' para este jugador y juego?
+    const already = payments.find(p => p.playerId === player.id && p.gameId === selectedGame.id && ['Pago de Play', 'Pago Triangular', 'Pago Cuadrangular', 'Pago Torneo'].includes(p.description));
+    if (already) return; // ya marcado como pagado
+
+    const payload = {
+      playerId: player.id,
+      playerName: player.name,
+      amount: gameFee,
+      description: 'Pago de Play',
+      notes: `Juego Vs ${selectedGame.opponent} (${formatDate(selectedGame.eventDate || selectedGame.date || '')})`,
+      eventDate: normalizeDate(selectedGame.eventDate),
+      gameId: selectedGame.id,
+      fieldPayment: selectedGame.fieldPayment !== undefined ? Number(selectedGame.fieldPayment) : undefined
+    } as unknown as Payment;
+
+    try {
+      mutateData(PAYMENT_API_URL, 'POST', payload, setPayments, `softball_payments_${activeTeamId}`, (success: boolean) => {
+        if (success) {
+          // Recalcular totales y persistir en el juego
+          updateGameTotals(selectedGame);
+        }
+      });
+    } catch (err) {
+      console.error('Error marking player paid', err);
+    }
+  };
 
   const sortedGames = [...games].sort((a, b) => new Date(b.eventDate || b.date || 0).getTime() - new Date(a.eventDate || a.date || 0).getTime());
   const displayedGames = showAll ? sortedGames : sortedGames.slice(0, 3);
@@ -144,23 +221,36 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
             if (!selectedGame) return null;
             const gameDateStr = formatDate(selectedGame.eventDate || selectedGame.date || '');
             const expectedNotesFragment1 = `Vs ${selectedGame.opponent}`;
-            
+            const paidDescriptions = ['Pago de Play', 'Pago Triangular', 'Pago Cuadrangular', 'Pago Torneo'];
+            const attendanceDescriptions = [...paidDescriptions, 'Ausente', 'Deuda Pendiente'];
+
+            const matchesSelectedGame = (payment: Payment) => {
+              return (payment.gameId && payment.gameId === selectedGame.id) || (payment.notes && payment.notes.includes(expectedNotesFragment1));
+            };
+
+            const getPlayerGamePayments = (playerId: string) =>
+              payments.filter(pay => pay.playerId === playerId && attendanceDescriptions.includes(pay.description) && matchesSelectedGame(pay));
+
             const payers = [...players].sort((a, b) => a.name.localeCompare(b.name)).map(p => {
-              const hasPaid = payments.find(pay => 
-                pay.playerId === p.id && 
-                ['Pago de Play', 'Pago Triangular', 'Pago Cuadrangular', 'Pago Torneo', 'Ausente'].includes(pay.description) && 
-                pay.notes && 
-                pay.notes.includes(expectedNotesFragment1)
-              );
-              return { player: p, payment: hasPaid };
+              const playerPayments = getPlayerGamePayments(p.id);
+              const paidPayments = playerPayments.filter(pay => paidDescriptions.includes(pay.description));
+              const absentPayment = playerPayments.find(pay => pay.description === 'Ausente');
+              const debtPayment = playerPayments.find(pay => pay.description === 'Deuda Pendiente');
+              return {
+                player: p,
+                payments: playerPayments,
+                paidAmount: paidPayments.reduce((sum, pay) => sum + (Number(pay.amount) || 0), 0),
+                status: paidPayments.length > 0 ? 'paid' : absentPayment ? 'absent' : debtPayment ? 'debt' : 'unpaid',
+                displayPayment: paidPayments.length > 0 ? paidPayments[paidPayments.length - 1] : absentPayment || debtPayment,
+              };
             });
-            
-            const countPaid = payers.filter(p => p.payment && p.payment.description !== 'Ausente').length;
-            const countAbsent = payers.filter(p => p.payment && p.payment.description === 'Ausente').length;
-            const countUnpaid = payers.length - countPaid - countAbsent;
-            const totalAmountPaid = payers.reduce((sum, p) => {
-              if (p.payment && p.payment.description !== 'Ausente' && p.payment.description !== 'Deuda Pendiente') {
-                return sum + (Number(p.payment.amount) || 0);
+
+            const countPaid = payers.filter(p => p.status === 'paid').length;
+            const countAbsent = payers.filter(p => p.status === 'absent').length;
+            const countUnpaid = payers.filter(p => p.status === 'unpaid').length;
+            const totalAmountPaid = payments.reduce((sum, pay) => {
+              if (paidDescriptions.includes(pay.description) && matchesSelectedGame(pay)) {
+                return sum + (Number(pay.amount) || 0);
               }
               return sum;
             }, 0);
@@ -224,19 +314,19 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
 
                 {payers.length === 0 ? <div className="empty-state"><h3>Roster vacío.</h3></div> : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
-                    {payers.map(({ player, payment }) => (
-                      <div key={player.id} className="player-card" style={{ borderLeft: `5px solid ${payment ? (payment.description === 'Ausente' ? '#94a3b8' : (payment.description === 'Deuda Pendiente' ? '#f59e0b' : '#22c55e')) : '#ef4444'}` }}>
+                    {payers.map(({ player, status, paidAmount, displayPayment }) => (
+                      <div key={player.id} className="player-card" style={{ borderLeft: `5px solid ${status === 'absent' ? '#94a3b8' : status === 'debt' ? '#f59e0b' : status === 'paid' ? '#22c55e' : '#ef4444'}` }}>
                         <div className="flex-responsive" style={{ gap: '0.75rem' }}>
                           <div style={{ minWidth: 0, flex: 1 }}>
                             <div style={{ fontWeight: 700, fontSize: '1.05rem', color: '#f8fafc', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{player.name} <span style={{fontSize: '0.8em', color: '#94a3b8', fontWeight: 'normal'}}>#{player.jerseyNumber}</span></div>
-                            <div style={{ fontSize: '0.75rem', color: payment ? (payment.description === 'Ausente' ? '#94a3b8' : (payment.description === 'Deuda Pendiente' ? '#f59e0b' : '#22c55e')) : '#ef4444', marginTop: '0.1rem', fontWeight: 'bold', textTransform: 'uppercase' }}>
-                              {payment ? (payment.description === 'Ausente' ? 'Ausente' : (payment.description === 'Deuda Pendiente' ? `Deuda ${formatCurrency(payment.amount)}` : `Pagó ${formatCurrency(payment.amount)}`)) : 'Falta Cobrar'}
+                            <div style={{ fontSize: '0.75rem', color: status === 'absent' ? '#94a3b8' : status === 'debt' ? '#f59e0b' : status === 'paid' ? '#22c55e' : '#ef4444', marginTop: '0.1rem', fontWeight: 'bold', textTransform: 'uppercase' }}>
+                              {status === 'paid' ? `Pagó ${formatCurrency(paidAmount)}` : status === 'absent' ? 'Ausente' : status === 'debt' ? `Deuda ${formatCurrency(displayPayment?.amount || 0)}` : 'Falta Cobrar'}
                             </div>
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-start' }}>
-                            {!payment ? (
+                            {status === 'unpaid' ? (
                               <>
-                                <button onClick={() => handleQuickPayment(player, gameDateStr, selectedGame.opponent, selectedGame.eventDate, selectedGame.feePerPerson)} className="btn-primary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', flex: 1, minWidth: '70px', background: '#22c55e' }}>Pagó</button>
+                                <button onClick={() => markPlayerPaid(player)} className="btn-primary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', flex: 1, minWidth: '70px', background: '#22c55e' }}>Pagó</button>
                                 <button 
                                   onClick={() => {
                                     setConfirmActionModal({
@@ -245,8 +335,8 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
                                       message: `¿${player.name} faltó?`,
                                       onConfirm: () => {
                                         try {
-                                          const payload = { playerId: player.id, playerName: player.name, amount: 0, description: 'Ausente', notes: `Juego Vs ${selectedGame.opponent} (${gameDateStr})`, eventDate: normalizeDate(selectedGame.eventDate) };
-                                          mutateData(PAYMENT_API_URL, 'POST', payload, setPayments, `softball_payments_${activeTeamId}`, () => {});
+                                          const payload = { playerId: player.id, playerName: player.name, amount: 0, description: 'Ausente', notes: `Juego Vs ${selectedGame.opponent} (${gameDateStr})`, eventDate: normalizeDate(selectedGame.eventDate), gameId: selectedGame.id };
+                                          mutateData(PAYMENT_API_URL, 'POST', payload, setPayments, `softball_payments_${activeTeamId}`, () => { updateGameTotals(selectedGame); });
                                         } catch { alert("Error"); }
                                       }
                                     });
@@ -265,8 +355,8 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
                                       onConfirm: (val?: string) => {
                                         const amount = Number(val) || 10;
                                         try {
-                                          const payload = { playerId: player.id, playerName: player.name, amount, description: 'Deuda Pendiente', notes: `Juego Vs ${selectedGame.opponent} (${gameDateStr})`, eventDate: normalizeDate(selectedGame.eventDate) };
-                                          mutateData(PAYMENT_API_URL, 'POST', payload, setPayments, `softball_payments_${activeTeamId}`, () => {});
+                                          const payload = { playerId: player.id, playerName: player.name, amount, description: 'Deuda Pendiente', notes: `Juego Vs ${selectedGame.opponent} (${gameDateStr})`, eventDate: normalizeDate(selectedGame.eventDate), gameId: selectedGame.id };
+                                          mutateData(PAYMENT_API_URL, 'POST', payload, setPayments, `softball_payments_${activeTeamId}`, () => { updateGameTotals(selectedGame); });
                                         } catch { alert("Error"); }
                                       }
                                     });
@@ -276,8 +366,7 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
                               </>
                             ) : (
                                <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
-
-                                 <button className="btn-icon" onClick={() => confirmDelete('payment', payment.id)} style={{ color: '#ef4444' }}><Trash2 size={20} /></button>
+                                 <button className="btn-icon" onClick={() => confirmDelete('payment', displayPayment?.id || '')} style={{ color: '#ef4444' }}><Trash2 size={20} /></button>
                                </div>
                             )}
                           </div>

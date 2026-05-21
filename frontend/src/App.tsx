@@ -379,7 +379,7 @@ function App() {
   const [isRecoveryMode, setIsRecoveryMode] = useState(localStorage.getItem('softball_admin_recovery') === 'true');
   const [pwdForm, setPwdForm] = useState({ old: '', new: '', confirm: '', show: false });
   const [pwdVisibility, setPwdVisibility] = useState({ old: false, new: false, confirm: false, challenge: false });
-  const [quickPaymentModal, setQuickPaymentModal] = useState<{ isOpen: boolean, player: Player | null, gameDateStr: string, rawDate: string, opponent: string, amount: string }>({ isOpen: false, player: null, gameDateStr: '', rawDate: '', opponent: '', amount: '' });
+  const [quickPaymentModal, setQuickPaymentModal] = useState<{ isOpen: boolean, player: Player | null, gameId?: string, gameDateStr: string, rawDate: string, opponent: string, amount: string, fieldPayment: string }>({ isOpen: false, player: null, gameId: undefined, gameDateStr: '', rawDate: '', opponent: '', amount: '', fieldPayment: '' });
   const [isPlayerPaymentsModalOpen, setIsPlayerPaymentsModalOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [viewingReceipt, setViewingReceipt] = useState<string | null>(null);
@@ -1351,7 +1351,8 @@ function App() {
       notes: finalNotes || '',
       responsible: paymentFormData.responsible || '',
       eventDate: normalizeDate(paymentFormData.eventDate || getTodayString()),
-      conceptId: paymentFormData.conceptId || null
+      conceptId: paymentFormData.conceptId || null,
+      gameId: paymentFormData.gameId || null
     };
 
 
@@ -1574,8 +1575,8 @@ function App() {
     return matchSearch && isDateInRange(g.eventDate || g.date || '');
   }).sort((a, b) => new Date(b.eventDate || b.date || 0).getTime() - new Date(a.eventDate || a.date || 0).getTime());
 
-  const handleQuickPayment = (player: Player, gameDateStr: string, gameOpponent: string, rawDate: string, gameFee?: string | number) => {
-    setQuickPaymentModal({ isOpen: true, player, gameDateStr, rawDate, opponent: gameOpponent, amount: gameFee ? String(gameFee) : '' });
+  const handleQuickPayment = (player: Player, gameId: string, gameDateStr: string, gameOpponent: string, rawDate: string, gameFee?: string | number, fieldFee?: string | number) => {
+    setQuickPaymentModal({ isOpen: true, player, gameId, gameDateStr, rawDate, opponent: gameOpponent, amount: gameFee ? String(gameFee) : '', fieldPayment: fieldFee ? String(fieldFee) : '' });
   };
 
   const submitQuickPayment = async () => {
@@ -1595,10 +1596,12 @@ function App() {
         amount: numAmount,
         description: 'Pago de Play',
         notes: `Juego Vs ${opponent} (${gameDateStr})`,
-        eventDate: normalizeDate(quickPaymentModal.rawDate)
+        eventDate: normalizeDate(quickPaymentModal.rawDate),
+        gameId: quickPaymentModal.gameId || null,
+        fieldPayment: quickPaymentModal.fieldPayment !== '' ? Number(quickPaymentModal.fieldPayment) : undefined
       };
       mutateData(PAYMENT_API_URL, 'POST', payload, setPayments, `softball_payments_${activeTeamId}`, (success: boolean) => {
-        if (success) setQuickPaymentModal({ isOpen: false, player: null, gameDateStr: '', rawDate: '', opponent: '', amount: '' });
+        if (success) setQuickPaymentModal({ isOpen: false, player: null, gameId: undefined, gameDateStr: '', rawDate: '', opponent: '', amount: '', fieldPayment: '' });
       });
     } catch (err) {
       console.error('Failed to create quick payment:', err);
@@ -2136,7 +2139,7 @@ function App() {
                   <span style={{ fontSize: '0.9rem', color: '#94a3b8' }}>Juego: Vs {quickPaymentModal.opponent} ({quickPaymentModal.gameDateStr})</span>
                 </p>
                 <div className="form-group">
-                  <label className="form-label">Monto por juego ($):</label>
+                  <label className="form-label">Cuota por juego ($):</label>
                   <input
                     type="number"
                     min="1"
@@ -2149,6 +2152,18 @@ function App() {
                     placeholder={quickPaymentModal.amount === '' ? 'Ingresa el monto' : ''}
                   />
                 </div>
+                {quickPaymentModal.fieldPayment !== '' && (
+                  <div className="form-group">
+                    <label className="form-label">Pago de terreno ($):</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      className="input-field"
+                      value={quickPaymentModal.fieldPayment}
+                      readOnly
+                    />
+                  </div>
+                )}
               </div>
               <div className="modal-footer">
                 <button className="btn-secondary" onClick={() => setQuickPaymentModal({ isOpen: false, player: null, gameDateStr: '', rawDate: '', opponent: '', amount: '' })}>Cancelar</button>
@@ -2371,9 +2386,9 @@ function App() {
   const renderSearchBar = (placeholder: string, value: string, setter: (val: string) => void, suggestions?: string[]) => {
     const listId = suggestions ? `list-${placeholder.replace(/\\s/g, '').substring(0, 10)}` : undefined;
     return (
-      <div style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', background: 'rgba(255,255,255,0.05)', borderRadius: '12px', padding: '0.75rem 1rem', border: '1px solid rgba(255,255,255,0.1)' }}>
-        <Search size={20} color="#94a3b8" style={{ marginRight: '0.5rem' }} />
-        <input type="text" placeholder={placeholder} value={value} onChange={(e) => setter(e.target.value)} list={listId} style={{ background: 'transparent', border: 'none', color: '#f8fafc', width: '100%', outline: 'none', fontSize: '1rem' }} />
+      <div style={{ marginBottom: '1rem', display: 'flex', flexWrap: 'wrap', alignItems: 'center', background: 'rgba(255,255,255,0.05)', borderRadius: '12px', padding: '0.75rem 1rem', border: '1px solid rgba(255,255,255,0.1)', gap: '0.5rem' }}>
+        <Search size={20} color="#94a3b8" style={{ flexShrink: 0 }} />
+        <input type="text" placeholder={placeholder} value={value} onChange={(e) => setter(e.target.value)} list={listId} style={{ background: 'transparent', border: 'none', color: '#f8fafc', width: '100%', outline: 'none', fontSize: '1rem', minWidth: '0' }} />
         {suggestions && (
           <datalist id={listId}>
             {suggestions.map((s, idx) => <option key={idx} value={s} />)}
@@ -2386,8 +2401,8 @@ function App() {
   // Reusable Date Range Filter Component
   const renderDateFilter = () => {
     return (
-      <div style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-        <button className="btn-secondary" onClick={openDateFilterModal} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, justifyContent: 'center', background: singleDate ? 'rgba(56, 189, 248, 0.1)' : 'rgba(255,255,255,0.05)', border: singleDate ? '1px solid rgba(56, 189, 248, 0.3)' : '1px solid rgba(255,255,255,0.1)' }}>
+      <div style={{ marginBottom: '1.5rem', display: 'grid', gridTemplateColumns: singleDate ? '1fr auto' : '1fr', gap: '0.75rem' }}>
+        <button className="btn-secondary" onClick={openDateFilterModal} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center', background: singleDate ? 'rgba(56, 189, 248, 0.1)' : 'rgba(255,255,255,0.05)', border: singleDate ? '1px solid rgba(56, 189, 248, 0.3)' : '1px solid rgba(255,255,255,0.1)' }}>
           <Calendar size={20} color={singleDate ? '#38bdf8' : '#94a3b8'} />
           <span style={{ color: singleDate ? '#38bdf8' : '#e2e8f0', fontWeight: singleDate ? 'bold' : 'normal' }}>
             {singleDate ? `Juego: ${formatDate(singleDate)}` : 'Seleccionar un Juego'}
@@ -2557,6 +2572,8 @@ function App() {
           <AttendanceTab
             config={config}
             games={games}
+            setGames={setGames}
+            GAME_API_URL={GAME_API_URL}
             paymentControlGameId={paymentControlGameId}
             setPaymentControlGameId={setPaymentControlGameId}
             players={players}

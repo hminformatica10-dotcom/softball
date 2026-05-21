@@ -17,6 +17,8 @@ export interface Payment {
   notes?: string;
   responsible?: string;
   eventDate: string;
+  fieldPayment?: number;
+  gameId?: string;
   date?: string;
   registrationDate?: string;
   conceptId?: string; // Optativo: ID del concepto grupal (Uniforme, etc)
@@ -53,6 +55,8 @@ export interface Game {
   result: string;
   feePerPerson?: number | string;
   fieldPayment?: number | string;
+  collectedTotal?: number;
+  surplus?: number;
 }
 
 export interface AppConfig {
