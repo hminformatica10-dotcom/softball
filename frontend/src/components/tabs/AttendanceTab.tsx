@@ -105,8 +105,49 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
     if (!selectedGame) return;
 
     const gameFee = parseGameFee(selectedGame.feePerPerson);
+    
+    // Si no hay cuota definida, pedir al usuario que ingrese el monto
     if (!gameFee || gameFee <= 0) {
-      alert('Debes registrar la cuota por juego del partido antes de marcar un pago.');
+      setConfirmActionInput('0');
+      setConfirmActionModal({
+        isOpen: true,
+        title: 'Registrar Pago',
+        message: `¿Cuánto pagó ${player.name} por este juego?`,
+        requiresInput: true,
+        inputLabel: 'Monto ($)',
+        onConfirm: (val?: string) => {
+          const amount = Number(val) || 0;
+          if (amount <= 0) {
+            alert('Por favor ingresa un monto válido');
+            return;
+          }
+          
+          // Evitar duplicados
+          const already = payments.find(p => p.playerId === player.id && p.gameId === selectedGame.id && ['Pago de Play', 'Pago Triangular', 'Pago Cuadrangular', 'Pago Torneo'].includes(p.description));
+          if (already) return;
+
+          const payload = {
+            playerId: player.id,
+            playerName: player.name,
+            amount: amount,
+            description: 'Pago de Play',
+            notes: `Juego Vs ${selectedGame.opponent} (${formatDate(selectedGame.eventDate || selectedGame.date || '')})`,
+            eventDate: normalizeDate(selectedGame.eventDate),
+            gameId: selectedGame.id,
+            fieldPayment: selectedGame.fieldPayment !== undefined ? Number(selectedGame.fieldPayment) : undefined
+          } as unknown as Payment;
+
+          try {
+            mutateData(PAYMENT_API_URL, 'POST', payload, setPayments, `softball_payments_${activeTeamId}`, (success: boolean) => {
+              if (success) {
+                updateGameTotals(selectedGame);
+              }
+            });
+          } catch (err) {
+            console.error('Error marking player paid', err);
+          }
+        }
+      });
       return;
     }
 
