@@ -144,7 +144,9 @@ const paymentSchema = new mongoose.Schema({
   notes: { type: String, default: '' },
   eventDate: { type: Date, default: Date.now, required: true },
   registrationDate: { type: Date, default: Date.now },
-  conceptId: { type: String, default: null }
+  conceptId: { type: String, default: null },
+  gameId: { type: String, default: null },
+  fieldPayment: { type: Number, default: null }
 });
 
 paymentSchema.set('toJSON', {
@@ -182,6 +184,10 @@ const gameSchema = new mongoose.Schema({
   time: { type: String, default: '' },
   location: { type: String, default: '' },
   result: { type: String, default: 'Pendiente' },
+  feePerPerson: { type: Number, default: 0 },
+  fieldPayment: { type: Number, default: 0 },
+  collectedTotal: { type: Number, default: 0 },
+  surplus: { type: Number, default: 0 },
   createdAt: { type: Date, default: Date.now }
 });
 
@@ -495,7 +501,9 @@ app.post('/api/payments', getUserId, requireTeam, async (req, res) => {
       notes: req.body.notes,
       eventDate: finalDate,
       registrationDate: Date.now(),
-      conceptId: req.body.conceptId || null
+      conceptId: req.body.conceptId || null,
+      gameId: req.body.gameId || null,
+      fieldPayment: req.body.fieldPayment !== undefined ? Number(req.body.fieldPayment) : null
     });
     const savedPayment = await newPayment.save();
     console.log(`   Pago registrado: ${savedPayment._id}`);
@@ -517,7 +525,9 @@ app.put('/api/payments/:id', getUserId, requireTeam, async (req, res) => {
         amount: req.body.amount,
         description: req.body.description,
         notes: req.body.notes,
-        eventDate: req.body.eventDate ? new Date(req.body.eventDate) : undefined
+        eventDate: req.body.eventDate ? new Date(req.body.eventDate) : undefined,
+        gameId: req.body.gameId !== undefined ? (req.body.gameId || null) : undefined,
+        fieldPayment: req.body.fieldPayment !== undefined ? (req.body.fieldPayment === '' || req.body.fieldPayment === null ? null : Number(req.body.fieldPayment)) : undefined
       },
       { new: true }
     );
@@ -690,7 +700,11 @@ app.get('/api/games', getUserId, requireTeam, async (req, res) => {
       eventDate: g.eventDate,
       time: g.time,
       location: g.location,
-      result: g.result
+      result: g.result,
+      feePerPerson: g.feePerPerson || 0,
+      fieldPayment: g.fieldPayment || 0,
+      collectedTotal: g.collectedTotal || 0,
+      surplus: g.surplus || 0
     })));
   } catch (err) {
     console.error(`   Error: ${err.message}`);
@@ -720,7 +734,11 @@ app.post('/api/games', getUserId, requireTeam, async (req, res) => {
       eventDate: parsedDate,
       time: req.body.time || '',
       location: req.body.location || '',
-      result: req.body.result || 'Pendiente'
+      result: req.body.result || 'Pendiente',
+      feePerPerson: req.body.feePerPerson !== undefined ? Number(req.body.feePerPerson) : 0,
+      fieldPayment: req.body.fieldPayment !== undefined ? Number(req.body.fieldPayment) : 0,
+      collectedTotal: req.body.collectedTotal !== undefined ? Number(req.body.collectedTotal) : 0,
+      surplus: req.body.surplus !== undefined ? Number(req.body.surplus) : 0
     });
     
     const savedGame = await newGame.save();
@@ -732,7 +750,11 @@ app.post('/api/games', getUserId, requireTeam, async (req, res) => {
       eventDate: savedGame.eventDate,
       time: savedGame.time,
       location: savedGame.location,
-      result: savedGame.result
+      result: savedGame.result,
+      feePerPerson: savedGame.feePerPerson || 0,
+      fieldPayment: savedGame.fieldPayment || 0,
+      collectedTotal: savedGame.collectedTotal || 0,
+      surplus: savedGame.surplus || 0
     });
   } catch (err) {
     console.error(`   ERROR CRÍTICO AL GUARDAR JUEGO: ${err.message}`);
@@ -764,6 +786,19 @@ app.put('/api/games/:id', getUserId, requireTeam, async (req, res) => {
       updateData.eventDate = new Date(gameDateString);
     }
 
+    if (req.body.feePerPerson !== undefined) {
+      updateData.feePerPerson = req.body.feePerPerson === '' ? 0 : Number(req.body.feePerPerson);
+    }
+    if (req.body.fieldPayment !== undefined) {
+      updateData.fieldPayment = req.body.fieldPayment === '' ? 0 : Number(req.body.fieldPayment);
+    }
+    if (req.body.collectedTotal !== undefined) {
+      updateData.collectedTotal = Number(req.body.collectedTotal);
+    }
+    if (req.body.surplus !== undefined) {
+      updateData.surplus = Number(req.body.surplus);
+    }
+
     const updatedGame = await Game.findOneAndUpdate(
       { _id: req.params.id, userId: req.userId, teamId: req.teamId },
       updateData,
@@ -781,7 +816,11 @@ app.put('/api/games/:id', getUserId, requireTeam, async (req, res) => {
       eventDate: updatedGame.eventDate,
       time: updatedGame.time,
       location: updatedGame.location,
-      result: updatedGame.result
+      result: updatedGame.result,
+      feePerPerson: updatedGame.feePerPerson || 0,
+      fieldPayment: updatedGame.fieldPayment || 0,
+      collectedTotal: updatedGame.collectedTotal || 0,
+      surplus: updatedGame.surplus || 0
     });
   } catch (err) {
     console.error(`   Error: ${err.message}`);

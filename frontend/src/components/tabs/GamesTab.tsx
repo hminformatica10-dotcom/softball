@@ -15,6 +15,7 @@ interface GamesTabProps {
   renderSearchBar: (placeholder: string, value: string, setter: (val: string) => void) => React.ReactNode;
   renderDateFilter: () => React.ReactNode;
   formatDate: (dateString: string) => string;
+  formatCurrency: (val: number) => string;
   openEditModal: (type: string, item: any) => void;
   confirmDelete: (type: string, id: string) => void;
   showForm: boolean;
@@ -33,6 +34,7 @@ export const GamesTab: React.FC<GamesTabProps> = ({
   renderSearchBar,
   renderDateFilter,
   formatDate: _formatDate,
+  formatCurrency,
   openEditModal,
   confirmDelete,
   showForm,
@@ -111,7 +113,8 @@ export const GamesTab: React.FC<GamesTabProps> = ({
                         </span>
                         {game.time && <span style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: '600' }}>• {game.time}</span>}
                         {game.location && <span style={{ fontSize: '0.75rem', color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '120px' }}>• {game.location}</span>}
-                        {game.fieldPayment && <span style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: '600' }}>• Terreno {formatCurrency(Number(game.fieldPayment))}</span>}
+                        {game.feePerPerson ? <span style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: '600' }}>• Cuota {formatCurrency(Number(game.feePerPerson))}</span> : null}
+                        {game.fieldPayment ? <span style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: '600' }}>• Terreno {formatCurrency(Number(game.fieldPayment))}</span> : null}
                       </div>
                     </div>
                   </div>

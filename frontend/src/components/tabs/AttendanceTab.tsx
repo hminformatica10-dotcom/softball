@@ -83,6 +83,10 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
     const terreno = Number(game.fieldPayment || 0);
     const surplus = total - terreno;
 
+    if (Number(game.collectedTotal || 0) === total && Number(game.surplus || 0) === surplus) {
+      return;
+    }
+
     const updated = { ...game, collectedTotal: total, surplus } as Game & { id: string };
     // Persistir en backend la información del juego
     mutateData(GAME_API_URL, 'PUT', updated, setGames, `softball_games_${activeTeamId}`, () => {});

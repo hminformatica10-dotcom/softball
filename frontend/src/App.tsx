@@ -2111,7 +2111,10 @@ function App() {
                           <option value="Pendiente">Pendiente</option><option value="Victoria">Victoria</option><option value="Derrota">Derrota</option><option value="Empate">Empate</option><option value="Suspendido">Suspendido</option>
                         </select>
                       </div>
-                      <div className="form-group"><label className="form-label">Pago de terreno ($)</label><input className="input-field" type="number" step="0.01" value={editModal.data.fieldPayment || ''} onChange={(e) => setEditModal({ ...editModal, data: { ...editModal.data, fieldPayment: e.target.value } })} /></div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                        <div className="form-group"><label className="form-label">Cuota por juego ($)</label><input className="input-field" type="number" step="0.01" value={editModal.data.feePerPerson || ''} onChange={(e) => setEditModal({ ...editModal, data: { ...editModal.data, feePerPerson: e.target.value } })} /></div>
+                        <div className="form-group"><label className="form-label">Pago de terreno ($)</label><input className="input-field" type="number" step="0.01" value={editModal.data.fieldPayment || ''} onChange={(e) => setEditModal({ ...editModal, data: { ...editModal.data, fieldPayment: e.target.value } })} /></div>
+                      </div>
                     </>
                   )}
                 </form>
@@ -2514,6 +2517,7 @@ function App() {
             renderSearchBar={renderSearchBar}
             renderDateFilter={renderDateFilter}
             formatDate={formatDate}
+            formatCurrency={formatCurrency}
             openEditModal={openEditModal}
             confirmDelete={confirmDelete}
             showForm={showGameForm}
