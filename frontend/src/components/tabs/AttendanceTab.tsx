@@ -330,7 +330,21 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-start' }}>
                             {status === 'unpaid' ? (
                               <>
-                                <button onClick={() => markPlayerPaid(player)} className="btn-primary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', flex: 1, minWidth: '70px', background: '#22c55e' }}>Pagó</button>
+                                <button 
+                                  onClick={() => handleQuickPayment(
+                                    player, 
+                                    selectedGame.id, 
+                                    gameDateStr, 
+                                    selectedGame.opponent, 
+                                    selectedGame.eventDate || selectedGame.date || '', 
+                                    selectedGame.feePerPerson, 
+                                    selectedGame.fieldPayment
+                                  )} 
+                                  className="btn-primary" 
+                                  style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', flex: 1, minWidth: '70px', background: '#22c55e' }}
+                                >
+                                  Pagó
+                                </button>
                                 <button 
                                   onClick={() => {
                                     setConfirmActionModal({

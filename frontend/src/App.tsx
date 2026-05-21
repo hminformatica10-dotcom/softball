@@ -2151,8 +2151,7 @@ function App() {
                     value={quickPaymentModal.amount}
                     onChange={(e) => setQuickPaymentModal({ ...quickPaymentModal, amount: e.target.value })}
                     autoFocus
-                    readOnly={quickPaymentModal.amount !== ''}
-                    placeholder={quickPaymentModal.amount === '' ? 'Ingresa el monto' : ''}
+                    placeholder="Ingresa el monto"
                   />
                 </div>
                 {quickPaymentModal.fieldPayment !== '' && (
