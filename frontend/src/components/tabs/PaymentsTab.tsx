@@ -46,8 +46,6 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
   const [selectedConcept, setSelectedConcept] = useState<PaymentConcept | null>(null);
   const [showNewConceptModal, setShowNewConceptModal] = useState(false);
   const [newConceptData, setNewConceptData] = useState({ name: '', amount: '' });
-  const [addingAbonoFor, setAddingAbonoFor] = useState<string | null>(null);
-  const [abonoAmount, setAbonoAmount] = useState('');
   const [selectedResponsible, setSelectedResponsible] = useState<string | null>(null);
   const [showResponsibleMenu, setShowResponsibleMenu] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
@@ -61,46 +59,6 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
     handleConceptSubmit(newConceptData.name, Number(newConceptData.amount));
     setShowNewConceptModal(false);
     setNewConceptData({ name: '', amount: '' });
-  };
-
-  const onQuickPay = (player: Player, concept: PaymentConcept, remaining: number) => {
-    // We use the existing handlePaymentSubmit logic by updating the global form data first
-    setPaymentFormData({
-      ...paymentFormData,
-      playerId: player.id,
-      amount: remaining.toString(),
-      description: concept.name,
-      notes: `Pago Total: ${concept.name}`,
-      conceptId: concept.id,
-      eventDate: new Date().toISOString().split('T')[0]
-    });
-    
-    // Using setTimeout to ensure state is updated before submit
-    setTimeout(() => {
-      const fakeEvent = { preventDefault: () => {} } as React.FormEvent;
-      handlePaymentSubmit(fakeEvent);
-    }, 0);
-  };
-
-  const onAddAbono = (player: Player, concept: PaymentConcept) => {
-    if (!abonoAmount || isNaN(Number(abonoAmount))) return;
-    
-    setPaymentFormData({
-      ...paymentFormData,
-      playerId: player.id,
-      amount: abonoAmount,
-      description: concept.name,
-      notes: `Abono: ${concept.name}`,
-      conceptId: concept.id,
-      eventDate: new Date().toISOString().split('T')[0]
-    });
-
-    setTimeout(() => {
-      const fakeEvent = { preventDefault: () => {} } as React.FormEvent;
-      handlePaymentSubmit(fakeEvent);
-      setAddingAbonoFor(null);
-      setAbonoAmount('');
-    }, 0);
   };
 
   const renderIndividualForm = () => (
@@ -363,9 +321,8 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
                 <div style={{ fontSize: '0.85rem', color: '#94a3b8' }}>
                   {t('Meta', config.language)}: <span style={{ color: config.primaryColor, fontWeight: 'bold' }}>{formatCurrency(concept.totalAmount)}</span>
                 </div>
-                <div style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
                   <span style={{ fontSize: '0.75rem', color: '#22c55e', fontWeight: 'bold' }}>{formatCurrency(totalPaid)}</span>
-                  <div style={{ fontSize: '0.7rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px' }}>Entrar <ArrowLeft size={12} style={{ transform: 'rotate(180deg)' }} /></div>
                 </div>
               </div>
             );
@@ -411,7 +368,7 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
           </div>
           <div style={{ textAlign: 'center', borderLeft: '1px solid rgba(255,255,255,0.1)', borderRight: '1px solid rgba(255,255,255,0.1)' }}>
             <div style={{ color: '#f59e0b', fontSize: '1.4rem', fontWeight: '800' }}>{inProgressCount}</div>
-            <div style={{ color: '#94a3b8', fontSize: '0.7rem', fontWeight: '700', textTransform: 'uppercase' }}>Abono</div>
+            <div style={{ color: '#94a3b8', fontSize: '0.7rem', fontWeight: '700', textTransform: 'uppercase' }}>Parcial</div>
           </div>
           <div style={{ textAlign: 'center' }}>
             <div style={{ color: '#ef4444', fontSize: '1.4rem', fontWeight: '800' }}>{sortedPlayers.length - paidInFullCount - inProgressCount}</div>
@@ -449,63 +406,26 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
                   </div>
 
                   <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                    {addingAbonoFor === player.id ? (
-                      <div style={{ display: 'flex', gap: '0.4rem', animation: 'fadeIn 0.2s ease', width: '100%', justifyContent: 'flex-start' }}>
-                        <input 
-                          type="number" 
-                          className="input-field" 
-                          style={{ width: '80px', padding: '0.4rem' }} 
-                          placeholder="$$"
-                          value={abonoAmount}
-                          onChange={e => setAbonoAmount(e.target.value)}
-                          autoFocus
-                        />
-                        <button className="btn-primary" style={{ padding: '0.4rem 0.8rem', flex: 1 }} onClick={() => onAddAbono(player, concept)}>OK</button>
-                        <button className="btn-secondary" style={{ padding: '0.4rem' }} onClick={() => setAddingAbonoFor(null)}><X size={16} /></button>
-                      </div>
-                    ) : (
+                    {hasStarted && (
                       <>
-                        {!isCompleted && (
-                          <>
-                            <button 
-                              className="btn-secondary" 
-                              style={{ fontSize: '0.75rem', padding: '0.4rem 0.6rem', flex: 1, minWidth: '70px', borderColor: `${config.primaryColor}50`, color: config.primaryColor }}
-                              onClick={() => { setAddingAbonoFor(player.id); setAbonoAmount(''); }}
-                            >
-                              + Abono
-                            </button>
-                            <button 
-                              className="btn-primary" 
-                              style={{ fontSize: '0.75rem', padding: '0.4rem 0.6rem', flex: 1, minWidth: '70px', background: '#22c55e' }}
-                              onClick={() => onQuickPay(player, concept, remaining)}
-                            >
-                              Pagar
-                            </button>
-                          </>
-                        )}
-                        {hasStarted && (
-                           <>
-                             <button 
-                               className="btn-secondary" 
-                               style={{ 
-                                 fontSize: '0.75rem', padding: '0.4rem 0.6rem', flex: 1, minWidth: '70px', 
-                                 borderColor: isOlderThan24h(playerPayments[0]?.registrationDate) ? 'rgba(255,255,255,0.1)' : `${config.primaryColor}50`, 
-                                 color: isOlderThan24h(playerPayments[0]?.registrationDate) ? '#94a3b8' : config.primaryColor 
-                               }}
-                               onClick={() => {
-                                 const pToEdit = playerPayments[0];
-                                 if (openEditModal && pToEdit) openEditModal('payment', pToEdit);
-                               }}
-                               title={isOlderThan24h(playerPayments[0]?.registrationDate) ? "Este pago ya no puede ser editado directamente (Requiere contraseña)" : "Editar pago"}
-                             >
-                               {isOlderThan24h(playerPayments[0]?.registrationDate) ? <Lock size={14} style={{ marginRight: '4px' }} /> : <Edit2 size={14} style={{ marginRight: '4px' }} />} Editar
-                             </button>
-
-                           </>
-                        )}
-                        {isCompleted && <CheckCircle2 size={20} color="#22c55e" />}
+                        <button 
+                          className="btn-secondary" 
+                          style={{ 
+                            fontSize: '0.75rem', padding: '0.4rem 0.6rem', flex: 1, minWidth: '70px', 
+                            borderColor: isOlderThan24h(playerPayments[0]?.registrationDate) ? 'rgba(255,255,255,0.1)' : `${config.primaryColor}50`, 
+                            color: isOlderThan24h(playerPayments[0]?.registrationDate) ? '#94a3b8' : config.primaryColor 
+                          }}
+                          onClick={() => {
+                            const pToEdit = playerPayments[0];
+                            if (openEditModal && pToEdit) openEditModal('payment', pToEdit);
+                          }}
+                          title={isOlderThan24h(playerPayments[0]?.registrationDate) ? "Este pago ya no puede ser editado directamente (Requiere contraseña)" : "Editar pago"}
+                        >
+                          {isOlderThan24h(playerPayments[0]?.registrationDate) ? <Lock size={14} style={{ marginRight: '4px' }} /> : <Edit2 size={14} style={{ marginRight: '4px' }} />} Editar
+                        </button>
                       </>
                     )}
+                    {isCompleted && <CheckCircle2 size={20} color="#22c55e" />}
                   </div>
                 </div>
                 

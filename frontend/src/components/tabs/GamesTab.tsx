@@ -55,7 +55,7 @@ export const GamesTab: React.FC<GamesTabProps> = ({
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
               <div className="form-group"><label className="form-label">{t('Lugar / Estadio', config.language)} </label><input type="text" className="input-field" placeholder="Ej. Estadio" value={gameFormData.location || ''} onChange={e => setGameFormData({ ...gameFormData, location: e.target.value })} /></div>
-              <div className="form-group"><label className="form-label">Cuota por juego ($) </label><input type="number" className="input-field" placeholder="Ej. 10" value={gameFormData.feePerPerson || ''} onChange={e => setGameFormData({ ...gameFormData, feePerPerson: e.target.value })} /></div>
+              <div className="form-group"><label className="form-label">Cuota por juego ($) </label><input type="number" className="input-field" placeholder="Ej. 10" value={gameFormData.feePerPerson || ''} onChange={e => setGameFormData({ ...gameFormData, feePerPerson: e.target.value })} required /></div>
             </div>
             <div className="form-group"><label className="form-label">Pago de terreno ($) </label><input type="number" className="input-field" placeholder="Ej. 500" value={gameFormData.fieldPayment || ''} onChange={e => setGameFormData({ ...gameFormData, fieldPayment: e.target.value })} /></div>
             <div className="form-group"><label className="form-label">{t('Resultado', config.language)} </label>
