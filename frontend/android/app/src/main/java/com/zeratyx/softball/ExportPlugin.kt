@@ -23,20 +23,24 @@ class ExportPlugin : Plugin() {
     private var currentCall: PluginCall? = null
     private var fileData: ByteArray? = null
     private var fileName: String? = null
-    private var createDocumentLauncher: ActivityResultLauncher<String>? = null
+    private var createPdfDocumentLauncher: ActivityResultLauncher<String>? = null
+    private var createExcelDocumentLauncher: ActivityResultLauncher<String>? = null
 
     override fun load() {
         super.load()
         activity?.activityResultRegistry?.let { registry ->
-            createDocumentLauncher = registry.register(
-                "export-plugin-create-document",
-                ActivityResultContracts.CreateDocument("*/*")
+            createPdfDocumentLauncher = registry.register(
+                "export-plugin-create-pdf",
+                ActivityResultContracts.CreateDocument("application/pdf")
             ) { uri: Uri? ->
-                if (uri != null) {
-                    saveFileToUri(uri)
-                } else {
-                    rejectCall("Cancelado por el usuario")
-                }
+                handleDocumentResult(uri)
+            }
+
+            createExcelDocumentLauncher = registry.register(
+                "export-plugin-create-excel",
+                ActivityResultContracts.CreateDocument("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+            ) { uri: Uri? ->
+                handleDocumentResult(uri)
             }
         }
     }
@@ -59,7 +63,8 @@ class ExportPlugin : Plugin() {
             fileData = android.util.Base64.decode(base64Data, android.util.Base64.DEFAULT)
             fileName = suggestedName
 
-            createDocumentLauncher?.launch(suggestedName) ?: call.reject("No se puede iniciar el selector de archivos")
+            createPdfDocumentLauncher?.launch(suggestedName)
+                ?: call.reject("No se puede iniciar el selector de archivos PDF")
 
         } catch (e: Exception) {
             call.reject("Error al iniciar exportación: ${e.message}")
@@ -84,7 +89,8 @@ class ExportPlugin : Plugin() {
             fileData = android.util.Base64.decode(base64Data, android.util.Base64.DEFAULT)
             fileName = suggestedName
 
-            createDocumentLauncher?.launch(suggestedName) ?: call.reject("No se puede iniciar el selector de archivos")
+            createExcelDocumentLauncher?.launch(suggestedName)
+                ?: call.reject("No se puede iniciar el selector de archivos Excel")
 
         } catch (e: Exception) {
             call.reject("Error al iniciar exportación: ${e.message}")
@@ -94,6 +100,14 @@ class ExportPlugin : Plugin() {
     /**
      * Guardar archivo a través del Uri proporcionado por el SAF
      */
+    private fun handleDocumentResult(uri: Uri?) {
+        if (uri != null) {
+            saveFileToUri(uri)
+        } else {
+            rejectCall("Cancelado por el usuario")
+        }
+    }
+
     private fun saveFileToUri(uri: Uri) {
         val call = currentCall ?: return
 
