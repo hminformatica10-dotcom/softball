@@ -1395,6 +1395,21 @@ function App() {
     }
   };
 
+  const handleDeleteBulkPayments = async (paymentIds: string[], password: string): Promise<void> => {
+    if (!password || password !== config.adminPassword) {
+      throw new Error('Contraseña incorrecta');
+    }
+
+    if (!paymentIds || paymentIds.length === 0) return;
+
+    for (const paymentId of paymentIds) {
+      const deleted = await mutateData(PAYMENT_API_URL, 'DELETE', paymentId, setPayments, `softball_payments_${activeTeamId}`, () => { });
+      if (!deleted) {
+        throw new Error('Ocurrió un error al eliminar algunos pagos.');
+      }
+    }
+  };
+
   const handleConceptSubmit = (name: string, amount: number) => {
     if (!name || !amount) return;
     const payload = { name, totalAmount: amount };
@@ -2579,6 +2594,9 @@ function App() {
             onDeletePayment={handleDeletePayment}
             showForm={showPaymentForm}
             setShowForm={setShowPaymentForm}
+            games={games}
+            formatDate={formatDate}
+            onDeleteBulkPayments={handleDeleteBulkPayments}
           />
         );
       case 'Asistencia':
@@ -2628,6 +2646,7 @@ function App() {
             config={config}
             payments={payments}
             expenses={expenses}
+            games={games}
             reportType={reportType}
             reportPlayerFilter={reportPlayerFilter}
             chartView={chartView}

@@ -10,7 +10,7 @@ import { Share } from '@capacitor/share';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import type { Plugin } from '@capacitor/core';
 import { t } from '../../translations';
-import type { Payment, Expense, AppConfig } from '../../types';
+import type { Payment, Expense, AppConfig, Game } from '../../types';
 
 // Registrar plugin personalizado
 interface ExportPlugin extends Plugin {
@@ -30,6 +30,7 @@ interface ReportsTabProps {
   config: AppConfig;
   payments: Payment[];
   expenses: Expense[];
+  games: Game[];
   reportType: string;
   reportPlayerFilter: string;
   chartView: string;
@@ -53,6 +54,7 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
   config,
   payments,
   expenses,
+  games = [],
   reportType,
   reportPlayerFilter,
   chartView,
@@ -75,7 +77,6 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
   const [isExporting, setIsExporting] = React.useState(false);
   const [exportMessage, setExportMessage] = React.useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
   const [showMovementsManual, setShowMovementsManual] = React.useState(false);
-  const [showExportMenu, setShowExportMenu] = React.useState(false);
 
   // Sync internal state with prop if needed
   React.useEffect(() => {
@@ -240,7 +241,7 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
     
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
-    doc.text("REPORTE FINANCIERO OFICIAL", 15, 30);
+    doc.text("REPORTE FINANCIERO OFICIAL (POR JUEGOS)", 15, 30);
     
     const reportDateRange = reportSpecificDate ? formatDate(reportSpecificDate) : 
                           (startDate || endDate ? `${formatDate(startDate || 'Inicio')} - ${formatDate(endDate || 'Hoy')}` : "Todo el historial");
@@ -250,7 +251,8 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
     let currentY = 55;
     doc.setTextColor(0, 0, 0);
     doc.setFontSize(14);
-    doc.text("Resumen Financiero", 15, currentY);
+    doc.setFont("helvetica", "bold");
+    doc.text("Resumen Financiero General", 15, currentY);
     
     currentY += 8;
     // Cards container
@@ -282,67 +284,169 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
     doc.setTextColor(teamColor[0], teamColor[1], teamColor[2]);
     doc.text(formatCurrency(liquidBalance), 145, currentY + 18);
 
-    // --- DETAILED TABLES ---
     currentY += 40;
 
-    // 1. INCOME TABLE
-    const incomes = combinedTransactions.filter(t => t.type === 'ingreso' && t.description !== 'Deuda Pendiente');
-    if (incomes.length > 0) {
+    // --- GROUP TRANSACTIONS BY GAME ---
+    const safeGames = games || [];
+    const sortedGamesForReport = [...safeGames].sort((a, b) => new Date(b.eventDate || b.date || 0).getTime() - new Date(a.eventDate || a.date || 0).getTime());
+    
+    const gameGroups = sortedGamesForReport.map(game => {
+      const gameDateStr = formatDate(game.eventDate || game.date || '');
+      const expectedOpponentNotes = `Vs ${game.opponent}`;
+      
+      const gamePayments = filteredReportPayments.filter(p => 
+        p.gameId === game.id || (p.notes && p.notes.includes(expectedOpponentNotes))
+      );
+
+      const gameIncome = gamePayments
+        .filter(p => p.description !== 'Deuda Pendiente')
+        .reduce((sum, p) => sum + p.amount, 0);
+
+      const gameFieldExpense = Number(game.fieldPayment || 0);
+      const gameSurplus = gameIncome - gameFieldExpense;
+
+      return {
+        game,
+        payments: gamePayments,
+        income: gameIncome,
+        expense: gameFieldExpense,
+        surplus: gameSurplus,
+        gameDateStr
+      };
+    }).filter(group => group.payments.length > 0 || group.expense > 0);
+
+    // Other/General transactions
+    const otherPayments = filteredReportPayments.filter(p => {
+      return !safeGames.some(g => p.gameId === g.id || (p.notes && p.notes.includes(`Vs ${g.opponent}`)));
+    });
+
+    const otherExpenses = filteredReportExpenses; // Keep all logged expenses to make sure no data is hidden
+
+    // 1. Render Game Sections
+    if (gameGroups.length > 0) {
       doc.setTextColor(0, 0, 0);
       doc.setFontSize(14);
-      doc.text(`Detalle de Ingresos (${incomes.length})`, 15, currentY);
+      doc.setFont("helvetica", "bold");
+      doc.text("Detalle de Finanzas por Juegos", 15, currentY);
+      currentY += 8;
+
+      for (const group of gameGroups) {
+        if (currentY > 240) { doc.addPage(); currentY = 20; }
+
+        doc.setTextColor(teamColor[0], teamColor[1], teamColor[2]);
+        doc.setFontSize(11);
+        doc.setFont("helvetica", "bold");
+        doc.text(`Partido: Vs ${group.game.opponent} (${group.gameDateStr})`, 15, currentY);
+        currentY += 4;
+
+        // Build combined game transaction list (payments and ground expense)
+        const gameRows: any[] = [];
+        
+        // Add payments
+        group.payments.forEach(p => {
+          if (p.description === 'Deuda Pendiente') return;
+          gameRows.push([
+            formatDate(p.eventDate || ''),
+            p.playerName,
+            p.description,
+            "Ingreso",
+            formatCurrency(p.amount)
+          ]);
+        });
+
+        // Add field payment
+        if (group.expense > 0) {
+          gameRows.push([
+            formatDate(group.game.eventDate || ''),
+            "Gasto Terreno",
+            "Pago de Campo / Terreno",
+            "Gasto",
+            formatCurrency(group.expense)
+          ]);
+        }
+
+        autoTable(doc, {
+          startY: currentY,
+          head: [["Fecha", "Concepto / Jugador", "Detalle", "Tipo", "Monto"]],
+          body: gameRows.length > 0 ? gameRows : [["-", "Sin transacciones registradas", "-", "-", "$0.00"]],
+          headStyles: { fillColor: teamColor, textColor: [255, 255, 255], fontStyle: 'bold' },
+          alternateRowStyles: { fillColor: [250, 250, 250] },
+          margin: { left: 15, right: 15 }
+        });
+
+        currentY = (doc as any).lastAutoTable.finalY + 6;
+        
+        // Subtotals block
+        doc.setTextColor(50, 50, 50);
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "bold");
+        doc.text(`Recaudado: ${formatCurrency(group.income)}  |  Costo Campo: ${formatCurrency(group.expense)}  |  Balance: ${formatCurrency(group.surplus)}`, 16, currentY);
+        currentY += 12;
+      }
+    }
+
+    // 2. Render Other/General Payments Section
+    const incomesNotGame = otherPayments.filter(t => t.description !== 'Deuda Pendiente');
+    if (incomesNotGame.length > 0) {
+      if (currentY > 240) { doc.addPage(); currentY = 20; }
       
-      const result = autoTable(doc, {
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(13);
+      doc.setFont("helvetica", "bold");
+      doc.text("Otros Ingresos (No asociados a juegos)", 15, currentY);
+      
+      autoTable(doc, {
         startY: currentY + 4,
         head: [["Fecha", "Jugador", "Concepto", "Monto"]],
-        body: incomes.map(tx => {
+        body: incomesNotGame.map(tx => {
           let conceptText = tx.description;
           if (tx.conceptId) {
             const gc = groupConcepts.find(c => c.id === tx.conceptId || c._id === tx.conceptId);
             if (gc) conceptText = `[Grup] ${gc.name}`;
           }
-          return [formatDate(tx.eventDate), tx.title, conceptText, formatCurrency(tx.amount)];
+          return [formatDate(tx.eventDate), tx.playerName, conceptText, formatCurrency(tx.amount)];
         }),
-        headStyles: { fillColor: teamColor, textColor: [255, 255, 255], fontStyle: 'bold' },
+        headStyles: { fillColor: [34, 197, 94], textColor: [255, 255, 255], fontStyle: 'bold' },
         alternateRowStyles: { fillColor: [250, 250, 250] },
         margin: { left: 15, right: 15 }
       });
-      currentY = result.finalY + 15;
+      currentY = (doc as any).lastAutoTable.finalY + 15;
     }
 
-    // 2. EXPENSE TABLE
-    const transExpenses = combinedTransactions.filter(t => t.type === 'gasto');
-    if (transExpenses.length > 0) {
+    // 3. Render Other/General Expenses Section
+    if (otherExpenses.length > 0) {
       if (currentY > 240) { doc.addPage(); currentY = 20; }
       
       doc.setTextColor(0, 0, 0);
-      doc.setFontSize(14);
-      doc.text(`Detalle de Gastos (${transExpenses.length})`, 15, currentY);
+      doc.setFontSize(13);
+      doc.setFont("helvetica", "bold");
+      doc.text("Otros Gastos / Egresos Generales", 15, currentY);
       
-      const result = autoTable(doc, {
+      autoTable(doc, {
         startY: currentY + 4,
         head: [["Fecha", "Categoría", "Descripción", "Monto"]],
-        body: transExpenses.map(tx => [formatDate(tx.eventDate), tx.title, tx.description, formatCurrency(tx.amount)]),
-        headStyles: { fillColor: [226, 232, 240], textColor: [71, 85, 105], fontStyle: 'bold' },
+        body: otherExpenses.map(tx => [formatDate(tx.eventDate), tx.category, tx.description, formatCurrency(tx.amount)]),
+        headStyles: { fillColor: [239, 68, 68], textColor: [255, 255, 255], fontStyle: 'bold' },
         alternateRowStyles: { fillColor: [250, 250, 250] },
         margin: { left: 15, right: 15 }
       });
-      currentY = result.finalY + 15;
+      currentY = (doc as any).lastAutoTable.finalY + 15;
     }
 
-    // 3. DEBTS TABLE (If any in filter)
-    const debts = combinedTransactions.filter(t => t.description === 'Deuda Pendiente');
+    // 4. Render Debts Table (If any)
+    const debts = filteredReportPayments.filter(t => t.description === 'Deuda Pendiente');
     if (debts.length > 0) {
       if (currentY > 240) { doc.addPage(); currentY = 20; }
       
       doc.setTextColor(245, 158, 11);
-      doc.setFontSize(14);
+      doc.setFontSize(13);
+      doc.setFont("helvetica", "bold");
       doc.text(`Deudas Pendientes por Cobrar (${debts.length})`, 15, currentY);
       
       autoTable(doc, {
         startY: currentY + 4,
         head: [["Fecha", "Jugador", "Referencia", "Monto"]],
-        body: debts.map(tx => [formatDate(tx.eventDate), tx.title, "Deuda Asistencia", formatCurrency(tx.amount)]),
+        body: debts.map(tx => [formatDate(tx.eventDate), tx.playerName, "Deuda Asistencia", formatCurrency(tx.amount)]),
         headStyles: { fillColor: [245, 158, 11], textColor: [255, 255, 255], fontStyle: 'bold' },
         margin: { left: 15, right: 15 }
       });
@@ -410,7 +514,6 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
         const doc = await generatePDF();
         doc.save(fileName);
         showMessage('success', `✓ PDF descargado: ${fileName}`);
-        setShowExportMenu(false);
         return;
       }
 
@@ -424,7 +527,6 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
           });
           console.log('[EXPORT-PDF] Éxito con ExportPlugin:', result);
           showMessage('success', `✓ ${result.message}`);
-          setShowExportMenu(false);
           return;
         } catch (pluginError: any) {
           console.warn('[EXPORT-PDF] ExportPlugin falló, usando Filesystem:', pluginError.message);
@@ -442,7 +544,6 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
 
       console.log('[EXPORT-PDF] Archivo guardado en Documents');
       showMessage('success', `✓ PDF guardado: ${fileName}`);
-      setShowExportMenu(false);
 
     } catch (error: any) {
       console.error('[EXPORT-PDF] Error:', error);
@@ -461,26 +562,175 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
       setIsExporting(true);
       console.log('[EXPORT-EXCEL] Iniciando exportación Excel...');
 
-      const dataToExport = combinedTransactions.map(tx => {
-        let conceptText = tx.title;
-        if (tx.conceptId) {
-          const gc = groupConcepts.find(c => c.id === tx.conceptId || c._id === tx.conceptId);
-          if (gc) conceptText = `[Grup] ${gc.name}`;
-        }
+      // --- GROUP TRANSACTIONS BY GAME ---
+      const safeGames = games || [];
+      const sortedGamesForReport = [...safeGames].sort((a, b) => new Date(b.eventDate || b.date || 0).getTime() - new Date(a.eventDate || a.date || 0).getTime());
+      
+      const gameGroups = sortedGamesForReport.map(game => {
+        const gameDateStr = formatDate(game.eventDate || game.date || '');
+        const expectedOpponentNotes = `Vs ${game.opponent}`;
+        
+        const gamePayments = filteredReportPayments.filter(p => 
+          p.gameId === game.id || (p.notes && p.notes.includes(expectedOpponentNotes))
+        );
+
+        const gameIncome = gamePayments
+          .filter(p => p.description !== 'Deuda Pendiente')
+          .reduce((sum, p) => sum + p.amount, 0);
+
+        const gameFieldExpense = Number(game.fieldPayment || 0);
+        const gameSurplus = gameIncome - gameFieldExpense;
+
         return {
-          "Fecha": formatDate(tx.eventDate || ''),
-          "Tipo": tx.type === 'ingreso' ? (tx.description === 'Deuda Pendiente' ? 'DEUDA' : 'INGRESO') : 'GASTO',
-          "Concepto": conceptText,
-          "Descripción": tx.description,
-          "Nota": tx.notes || '',
-          "Monto": tx.amount
+          game,
+          payments: gamePayments,
+          income: gameIncome,
+          expense: gameFieldExpense,
+          surplus: gameSurplus,
+          gameDateStr
         };
+      }).filter(group => group.payments.length > 0 || group.expense > 0);
+
+      // Other/General transactions
+      const otherPayments = filteredReportPayments.filter(p => {
+        return !safeGames.some(g => p.gameId === g.id || (p.notes && p.notes.includes(`Vs ${g.opponent}`)));
       });
 
-      const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+      const otherExpenses = filteredReportExpenses;
+
+      const aoaData: any[][] = [];
+      
+      // Header Info
+      aoaData.push([config.teamName || 'Reporte Softball']);
+      aoaData.push(["REPORTE FINANCIERO OFICIAL (POR JUEGOS)"]);
+      const reportDateRange = reportSpecificDate ? formatDate(reportSpecificDate) : 
+                            (startDate || endDate ? `${formatDate(startDate || 'Inicio')} - ${formatDate(endDate || 'Hoy')}` : "Todo el historial");
+      aoaData.push([`Periodo: ${reportDateRange}`]);
+      aoaData.push([]); // Spacer
+      
+      // Resumen General
+      aoaData.push(["RESUMEN FINANCIERO GENERAL"]);
+      aoaData.push(["INGRESOS TOTALES", "GASTOS TOTALES", "SALDO NETO"]);
+      aoaData.push([liquidIncome, filteredExpensesTotal, liquidBalance]);
+      aoaData.push([]); // Spacer
+      aoaData.push([]); // Spacer
+
+      if (gameGroups.length > 0) {
+        aoaData.push(["DETALLE DE FINANZAS POR JUEGOS"]);
+        aoaData.push([]); // Spacer
+        
+        for (const group of gameGroups) {
+          aoaData.push([`Partido: Vs ${group.game.opponent} (${group.gameDateStr})`]);
+          aoaData.push(["Fecha", "Concepto / Jugador", "Detalle", "Tipo", "Monto"]);
+          
+          // Add payments
+          group.payments.forEach(p => {
+            if (p.description === 'Deuda Pendiente') return;
+            aoaData.push([
+              formatDate(p.eventDate || ''),
+              p.playerName,
+              p.description,
+              "Ingreso",
+              p.amount
+            ]);
+          });
+          
+          // Add field payment
+          if (group.expense > 0) {
+            aoaData.push([
+              formatDate(group.game.eventDate || ''),
+              "Gasto Terreno",
+              "Pago de Campo / Terreno",
+              "Gasto",
+              group.expense
+            ]);
+          }
+          
+          // Subtotal row
+          aoaData.push([
+            "", 
+            "SUBTOTAL JUEGO", 
+            `Recaudado: ${formatCurrency(group.income)} | Costo Campo: ${formatCurrency(group.expense)}`, 
+            "Balance", 
+            group.surplus
+          ]);
+          aoaData.push([]); // Spacer row
+        }
+      }
+
+      // General Incomes (not associated to games)
+      const incomesNotGame = otherPayments.filter(t => t.description !== 'Deuda Pendiente');
+      if (incomesNotGame.length > 0) {
+        aoaData.push(["OTROS INGRESOS (NO ASOCIADOS A JUEGOS)"]);
+        aoaData.push(["Fecha", "Jugador", "Concepto", "Tipo", "Monto"]);
+        
+        incomesNotGame.forEach(tx => {
+          let conceptText = tx.description;
+          if (tx.conceptId) {
+            const gc = groupConcepts.find(c => c.id === tx.conceptId || c._id === tx.conceptId);
+            if (gc) conceptText = `[Grup] ${gc.name}`;
+          }
+          aoaData.push([
+            formatDate(tx.eventDate),
+            tx.playerName,
+            conceptText,
+            "Ingreso",
+            tx.amount
+          ]);
+        });
+        aoaData.push([]); // Spacer row
+      }
+
+      // General Expenses
+      if (otherExpenses.length > 0) {
+        aoaData.push(["OTROS GASTOS / EGRESOS GENERALES"]);
+        aoaData.push(["Fecha", "Categoría", "Descripción", "Tipo", "Monto"]);
+        
+        otherExpenses.forEach(tx => {
+          aoaData.push([
+            formatDate(tx.eventDate),
+            tx.category,
+            tx.description,
+            "Gasto",
+            tx.amount
+          ]);
+        });
+        aoaData.push([]); // Spacer row
+      }
+
+      // Debts
+      const debts = filteredReportPayments.filter(t => t.description === 'Deuda Pendiente');
+      if (debts.length > 0) {
+        aoaData.push([`DEUDAS PENDIENTES POR COBRAR (${debts.length})`]);
+        aoaData.push(["Fecha", "Jugador", "Referencia", "Tipo", "Monto"]);
+        
+        debts.forEach(tx => {
+          aoaData.push([
+            formatDate(tx.eventDate),
+            tx.playerName,
+            "Deuda Asistencia",
+            "Deuda",
+            tx.amount
+          ]);
+        });
+        aoaData.push([]); // Spacer row
+      }
+
+      const worksheet = XLSX.utils.aoa_to_sheet(aoaData);
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Finanzas");
       
+      const fileName = generateFileName('xlsx');
+      console.log('[EXPORT-EXCEL] Nombre de archivo:', fileName);
+
+      if (!Capacitor.isNativePlatform()) {
+        // Fallback web: descargar directamente
+        console.log('[EXPORT-EXCEL] Plataforma web, descargando...');
+        XLSX.writeFile(workbook, fileName);
+        showMessage('success', `✓ Excel descargado: ${fileName}`);
+        return;
+      }
+
       const base64Excel = XLSX.write(workbook, { bookType: 'xlsx', type: 'base64' });
 
       if (!base64Excel) {
@@ -488,20 +738,6 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
       }
 
       console.log('[EXPORT-EXCEL] Base64 Excel generado, tamaño:', base64Excel.length, 'bytes');
-      const fileName = generateFileName('xlsx');
-      console.log('[EXPORT-EXCEL] Nombre de archivo:', fileName);
-
-      if (!Capacitor.isNativePlatform()) {
-        // Fallback web: descargar directamente
-        console.log('[EXPORT-EXCEL] Plataforma web, descargando...');
-        const worksheet = XLSX.utils.json_to_sheet(dataToExport);
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "Finanzas");
-        XLSX.writeFile(workbook, fileName);
-        showMessage('success', `✓ Excel descargado: ${fileName}`);
-        setShowExportMenu(false);
-        return;
-      }
 
       // Android/iOS: intentar con plugin personalizado primero
       if (ExportPluginImpl) {
@@ -513,7 +749,6 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
           });
           console.log('[EXPORT-EXCEL] Éxito con ExportPlugin:', result);
           showMessage('success', `✓ ${result.message}`);
-          setShowExportMenu(false);
           return;
         } catch (pluginError: any) {
           console.warn('[EXPORT-EXCEL] ExportPlugin falló, usando Filesystem:', pluginError.message);
@@ -531,7 +766,6 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
 
       console.log('[EXPORT-EXCEL] Archivo guardado en Documents');
       showMessage('success', `✓ Excel guardado: ${fileName}`);
-      setShowExportMenu(false);
 
     } catch (error: any) {
       console.error('[EXPORT-EXCEL] Error:', error);
@@ -567,7 +801,6 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
         const doc = await generatePDF();
         doc.save(fileName);
         showMessage('success', `✓ PDF descargado: ${fileName}`);
-        setShowExportMenu(false);
         return;
       }
 
@@ -611,7 +844,6 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
 
         console.log('[SHARE] Éxito');
         showMessage('success', '✓ Reporte compartido exitosamente');
-        setShowExportMenu(false);
 
       } catch (fileError: any) {
         console.error('[SHARE] Error en Filesystem/Share:', fileError);
@@ -654,123 +886,80 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
               <Search size={18} /> {t('Filtrar', config.language)}
               {hasActiveFilters && <span style={{ background: '#ef4444', borderRadius: '50%', width: '8px', height: '8px', marginLeft: '2px' }}></span>}
             </button>
-            <div style={{ position: 'relative', flex: 1, minWidth: '160px' }}>
-              <button 
-                type="button" 
-                onClick={() => setShowExportMenu(!showExportMenu)}
-                disabled={isExporting}
-                className="btn-primary" 
-                style={{ 
-                  width: '100%', 
-                  background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', 
-                  color: '#0f172a',
-                  fontWeight: '700',
-                  padding: '0.6rem', 
-                  gap: '0.4rem', 
-                  fontSize: '0.85rem', 
-                  display: 'flex', 
-                  justifyContent: 'center', 
-                  alignItems: 'center',
-                  opacity: isExporting ? 0.6 : 1,
-                  cursor: isExporting ? 'not-allowed' : 'pointer'
-                }}
-              >
-                {isExporting ? (
-                  <>
-                    <Loader size={18} className="animate-spin" /> Generando...
-                  </>
-                ) : (
-                  <>
-                    <Download size={18} /> Exportar
-                  </>
-                )}
-              </button>
-              
-              {showExportMenu && !isExporting && (
-                <div style={{
-                  position: 'absolute',
-                  top: '100%',
-                  right: 0,
-                  marginTop: '0.5rem',
-                  background: 'rgba(15, 23, 42, 0.98)',
-                  border: '1px solid rgba(255,255,255,0.2)',
-                  borderRadius: '12px',
-                  backdropFilter: 'blur(10px)',
-                  boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
-                  zIndex: 1000,
-                  minWidth: '170px',
-                  overflow: 'hidden'
-                }}>
-                  <button 
-                    onClick={() => { void exportPDFModern(); }}
-                    style={{
-                      width: '100%',
-                      padding: '0.7rem 0.9rem',
-                      border: 'none',
-                      background: 'transparent',
-                      color: '#f8fafc',
-                      textAlign: 'left',
-                      cursor: 'pointer',
-                      fontSize: '0.85rem',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.5rem',
-                      transition: 'background 0.2s',
-                      borderBottom: '1px solid rgba(255,255,255,0.1)'
-                    }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                  >
-                    <FileText size={14} /> PDF
-                  </button>
-                  
-                  <button 
-                    onClick={() => { void exportExcelModern(); }}
-                    style={{
-                      width: '100%',
-                      padding: '0.7rem 0.9rem',
-                      border: 'none',
-                      background: 'transparent',
-                      color: '#f8fafc',
-                      textAlign: 'left',
-                      cursor: 'pointer',
-                      fontSize: '0.85rem',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.5rem',
-                      transition: 'background 0.2s',
-                      borderBottom: '1px solid rgba(255,255,255,0.1)'
-                    }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                  >
-                    <FileSpreadsheet size={14} /> Excel
-                  </button>
-                  
-                  <button 
-                    onClick={() => { void shareReportAsNative(); }}
-                    style={{
-                      width: '100%',
-                      padding: '0.7rem 0.9rem',
-                      border: 'none',
-                      background: 'transparent',
-                      color: '#f8fafc',
-                      textAlign: 'left',
-                      cursor: 'pointer',
-                      fontSize: '0.85rem',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.5rem',
-                      transition: 'background 0.2s'
-                    }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                  >
-                    <Share2 size={14} /> Compartir
-                  </button>
-                </div>
-              )}
-            </div>
+            <button 
+              type="button"
+              onClick={() => { void exportPDFModern(); }}
+              disabled={isExporting}
+              className="btn-primary" 
+              style={{ 
+                flex: 1, 
+                minWidth: '100px', 
+                background: 'linear-gradient(135deg, #ef4444 0%, #b91c1c 100%)', 
+                color: '#ffffff',
+                fontWeight: '700',
+                padding: '0.6rem', 
+                gap: '0.4rem', 
+                fontSize: '0.85rem',
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                opacity: isExporting ? 0.6 : 1,
+                cursor: isExporting ? 'not-allowed' : 'pointer',
+                border: 'none'
+              }}
+            >
+              <FileText size={18} /> PDF
+            </button>
+            
+            <button 
+              type="button"
+              onClick={() => { void exportExcelModern(); }}
+              disabled={isExporting}
+              className="btn-primary" 
+              style={{ 
+                flex: 1, 
+                minWidth: '100px', 
+                background: 'linear-gradient(135deg, #22c55e 0%, #15803d 100%)', 
+                color: '#ffffff',
+                fontWeight: '700',
+                padding: '0.6rem', 
+                gap: '0.4rem', 
+                fontSize: '0.85rem',
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                opacity: isExporting ? 0.6 : 1,
+                cursor: isExporting ? 'not-allowed' : 'pointer',
+                border: 'none'
+              }}
+            >
+              <FileSpreadsheet size={18} /> Excel
+            </button>
+            
+            <button 
+              type="button"
+              onClick={() => { void shareReportAsNative(); }}
+              disabled={isExporting}
+              className="btn-primary" 
+              style={{ 
+                flex: 1, 
+                minWidth: '100px', 
+                background: 'linear-gradient(135deg, #0ea5e9 0%, #0369a1 100%)', 
+                color: '#ffffff',
+                fontWeight: '700',
+                padding: '0.6rem', 
+                gap: '0.4rem', 
+                fontSize: '0.85rem',
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                opacity: isExporting ? 0.6 : 1,
+                cursor: isExporting ? 'not-allowed' : 'pointer',
+                border: 'none'
+              }}
+            >
+              <Share2 size={18} /> Compartir
+            </button>
           </div>
         </div>
         

@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { DollarSign, Activity, Trash2, PlusCircle, LayoutGrid, User, Layers, ArrowLeft, CheckCircle2, Edit2, X, Lock, Eye, EyeOff } from 'lucide-react';
+import { DollarSign, Activity, Trash2, PlusCircle, LayoutGrid, User, Layers, ArrowLeft, CheckCircle2, Edit2, X, Lock, Eye, EyeOff, Search, Calendar } from 'lucide-react';
 import { t } from '../../translations';
 import { isOlderThan24h } from '../../utils';
-import type { Player, Payment, AppConfig, PaymentConcept } from '../../types';
+import type { Player, Payment, AppConfig, PaymentConcept, Game } from '../../types';
 
 interface PaymentsTabProps {
   config: AppConfig;
@@ -22,6 +22,11 @@ interface PaymentsTabProps {
   onDeletePayment?: (paymentId: string, password: string) => Promise<void>;
   showForm: boolean;
   setShowForm: (val: boolean) => void;
+  
+  // Added for filters
+  games?: Game[];
+  formatDate?: (val: string) => string;
+  onDeleteBulkPayments?: (paymentIds: string[], password: string) => Promise<void>;
 }
 
 export const PaymentsTab: React.FC<PaymentsTabProps> = ({
@@ -40,14 +45,28 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
   openEditModal,
   onDeletePayment,
   showForm,
-  setShowForm
+  setShowForm,
+  games = [],
+  formatDate,
+  onDeleteBulkPayments
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'individual' | 'conceptos'>('individual');
   const [selectedConcept, setSelectedConcept] = useState<PaymentConcept | null>(null);
   const [showNewConceptModal, setShowNewConceptModal] = useState(false);
   const [newConceptData, setNewConceptData] = useState({ name: '', amount: '' });
-  const [selectedResponsible, setSelectedResponsible] = useState<string | null>(null);
-  const [showResponsibleMenu, setShowResponsibleMenu] = useState(false);
+  
+  // Filter States
+  const [searchResponsible, setSearchResponsible] = useState('');
+  const [selectedGameId, setSelectedGameId] = useState<string>('all');
+  const [filterDate, setFilterDate] = useState<string>('');
+  const [showAllRecent, setShowAllRecent] = useState(false);
+
+  // Bulk Delete States
+  const [deleteBulkModal, setDeleteBulkModal] = useState<{ isOpen: boolean, loading: boolean }>({ isOpen: false, loading: false });
+  const [bulkDeletePassword, setBulkDeletePassword] = useState('');
+  const [bulkDeleteError, setBulkDeleteError] = useState('');
+  const [showBulkDeletePassword, setShowBulkDeletePassword] = useState(false);
+
   const [deletePassword, setDeletePassword] = useState('');
   const [deleteError, setDeleteError] = useState('');
   const [showDeletePassword, setShowDeletePassword] = useState(false);
@@ -144,9 +163,39 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
 
   const renderIndividualView = () => {
     const individualPayments = filteredPayments.filter(p => !p.conceptId);
-    const responsibles = Array.from(new Set(individualPayments.map(p => p.responsible || '').filter(Boolean))).sort((a, b) => a.localeCompare(b));
-    const filteredByResponsible = selectedResponsible ? individualPayments.filter(p => (p.responsible || '') === selectedResponsible) : individualPayments;
-    const recentPayments = filteredByResponsible.sort((a, b) => new Date(b.eventDate).getTime() - new Date(a.eventDate).getTime()).slice(0, selectedResponsible ? undefined : 5);
+    
+    // Filtering logic
+    const filteredPaymentsList = individualPayments.filter(p => {
+      // 1. Filter by responsible search text
+      const matchResponsible = !searchResponsible || (p.responsible || '').toLowerCase().includes(searchResponsible.toLowerCase());
+      
+      // 2. Filter by game select dropdown
+      let matchGame = true;
+      if (selectedGameId !== 'all') {
+        if (p.gameId === selectedGameId) {
+          matchGame = true;
+        } else {
+          const selectedGame = (games || []).find(g => g.id === selectedGameId);
+          if (selectedGame && selectedGame.opponent) {
+            const expectedOpponent = `Vs ${selectedGame.opponent}`.toLowerCase();
+            matchGame = !!(p.notes && p.notes.toLowerCase().includes(expectedOpponent));
+          } else {
+            matchGame = false;
+          }
+        }
+      }
+      
+      // 3. Filter by date picker
+      const matchDate = !filterDate || (p.eventDate && p.eventDate === filterDate) || (p.date && p.date.startsWith(filterDate));
+      
+      return matchResponsible && matchGame && matchDate;
+    });
+
+    const hasActiveFilters = searchResponsible !== '' || selectedGameId !== 'all' || filterDate !== '';
+    const sortedPayments = filteredPaymentsList.sort((a, b) => new Date(b.eventDate || b.date || 0).getTime() - new Date(a.eventDate || a.date || 0).getTime());
+    
+    // If no filters are active, show first 5 (unless showAllRecent is true)
+    const recentPayments = (hasActiveFilters || showAllRecent) ? sortedPayments : sortedPayments.slice(0, 5);
 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', width: '100%', gridColumn: '1 / -1' }}>
@@ -157,47 +206,123 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
             <Activity size={22} /> {t('Historial de Pagos Individuales', config.language)}
           </h3>
           
-          <div className="form-group" style={{ marginBottom: '1rem', position: 'relative' }}>
-            <label className="form-label">{t('Responsables', config.language)}</label>
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={() => setShowResponsibleMenu(prev => !prev)}
-              style={{ width: '100%', justifyContent: 'space-between', display: 'flex', alignItems: 'center' }}
-            >
-              {selectedResponsible || t('Seleccionar responsable', config.language)}
-              <span style={{ transform: showResponsibleMenu ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>▾</span>
-            </button>
-            {showResponsibleMenu && (
-              <div style={{ position: 'absolute', zIndex: 10, top: '100%', left: 0, right: 0, background: '#0f172a', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '12px', marginTop: '0.5rem', maxHeight: '220px', overflowY: 'auto' }}>
-                {responsibles.length === 0 ? (
-                  <div style={{ padding: '0.75rem', color: '#94a3b8' }}>{t('No hay responsables registrados', config.language)}</div>
-                ) : (
-                  responsibles.map(responsible => (
-                    <button
-                      key={responsible}
-                      type="button"
-                      onClick={() => { setSelectedResponsible(responsible); setShowResponsibleMenu(false); }}
-                      className="btn-secondary"
-                      style={{ width: '100%', textAlign: 'left', padding: '0.75rem 1rem', border: 'none', background: 'transparent', color: '#f8fafc' }}
-                    >
-                      {responsible}
-                    </button>
-                  ))
-                )}
-              </div>
-            )}
-            {selectedResponsible && (
+          {/* SECCIÓN DE FILTROS Y BÚSQUEDA */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+            gap: '0.75rem',
+            padding: '1.2rem',
+            background: 'rgba(255, 255, 255, 0.03)',
+            border: '1px solid rgba(255, 255, 255, 0.06)',
+            borderRadius: '16px',
+            marginBottom: '1.25rem'
+          }}>
+            {/* Búsqueda por Responsable */}
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label" style={{ fontSize: '0.75rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <User size={12} /> Responsable
+              </label>
+              <input 
+                type="text" 
+                className="input-field" 
+                placeholder="Buscar por responsable..." 
+                value={searchResponsible}
+                onChange={e => setSearchResponsible(e.target.value)}
+                style={{ padding: '0.5rem 0.75rem', fontSize: '0.85rem' }}
+              />
+            </div>
+
+            {/* Búsqueda por Juego */}
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label" style={{ fontSize: '0.75rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <Search size={12} /> Partido / Juego
+              </label>
+              <select
+                className="input-field"
+                value={selectedGameId}
+                onChange={e => setSelectedGameId(e.target.value)}
+                style={{ 
+                  padding: '0.5rem 0.75rem', 
+                  fontSize: '0.85rem', 
+                  colorScheme: 'dark', 
+                  color: '#f8fafc', 
+                  background: '#0f172a',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  borderRadius: '10px'
+                }}
+              >
+                <option value="all">Todos los juegos</option>
+                {(games || []).map(game => (
+                  <option key={game.id} value={game.id}>
+                    Vs {game.opponent} ({formatDate ? formatDate(game.eventDate || game.date || '') : (game.eventDate || game.date || '')})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Búsqueda por Fecha */}
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label" style={{ fontSize: '0.75rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <Calendar size={12} /> Fecha
+              </label>
+              <input 
+                type="date" 
+                className="input-field" 
+                value={filterDate}
+                onChange={e => setFilterDate(e.target.value)}
+                style={{ padding: '0.5rem 0.75rem', fontSize: '0.85rem', colorScheme: 'dark' }}
+              />
+            </div>
+          </div>
+
+          {hasActiveFilters && (
+            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem', marginTop: '-0.5rem' }}>
               <button
                 type="button"
+                onClick={() => {
+                  setSearchResponsible('');
+                  setSelectedGameId('all');
+                  setFilterDate('');
+                }}
                 className="btn-secondary"
-                onClick={() => setSelectedResponsible(null)}
-                style={{ marginTop: '0.75rem', width: '100%' }}
+                style={{
+                  flex: 1,
+                  padding: '0.5rem 1.25rem',
+                  fontSize: '0.8rem',
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  borderRadius: '12px'
+                }}
               >
-                {t('Mostrar todos', config.language)}
+                <X size={14} /> Limpiar Filtros
               </button>
-            )}
-          </div>
+              
+              {filteredPaymentsList.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setDeleteBulkModal({ isOpen: true, loading: false })}
+                  className="btn-danger"
+                  style={{
+                    flex: 1,
+                    padding: '0.5rem 1.25rem',
+                    fontSize: '0.8rem',
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    borderRadius: '12px',
+                    background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                    border: 'none',
+                    color: '#ffffff'
+                  }}
+                >
+                  <Trash2 size={14} /> Eliminar {filteredPaymentsList.length} Filtrados
+                </button>
+              )}
+            </div>
+          )}
           
           {recentPayments.length === 0 ? (
             <div className="empty-state">
@@ -215,7 +340,7 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
                         <div style={{ fontWeight: 'bold', color: '#f8fafc' }}>{player?.name || 'Jugador desconocido'}</div>
                         <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>{payment.notes || payment.description}</div>
                         {payment.responsible && <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Responsable: {payment.responsible}</div>}
-                        <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{new Date(payment.eventDate).toLocaleDateString(config.language === 'es' ? 'es-ES' : 'en-US')}</div>
+                        <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{formatDate ? formatDate(payment.eventDate) : new Date(payment.eventDate).toLocaleDateString(config.language === 'es' ? 'es-ES' : 'en-US')}</div>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                         <span style={{ fontWeight: 'bold', color: '#22c55e' }}>{formatCurrency(payment.amount)}</span>
@@ -249,11 +374,47 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
                   </div>
                 );
               })}
+
+              {!hasActiveFilters && sortedPayments.length > 5 && (
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setShowAllRecent(!showAllRecent)}
+                  style={{ marginTop: '0.75rem', width: '100%', borderRadius: '12px' }}
+                >
+                  {showAllRecent ? 'Mostrar menos (últimos 5)' : `Ver todos (${sortedPayments.length})`}
+                </button>
+              )}
             </div>
           )}
         </div>
       </div>
     );
+  };
+
+  const handleExecuteBulkDelete = async (paymentIds: string[]) => {
+    if (!bulkDeletePassword) {
+      setBulkDeleteError('Ingresa la contraseña');
+      return;
+    }
+
+    try {
+      setDeleteBulkModal({ isOpen: true, loading: true });
+      await onDeleteBulkPayments?.(paymentIds, bulkDeletePassword);
+      
+      setDeleteBulkModal({ isOpen: false, loading: false });
+      setBulkDeletePassword('');
+      setBulkDeleteError('');
+      setShowBulkDeletePassword(false);
+      
+      setSearchResponsible('');
+      setSelectedGameId('all');
+      setFilterDate('');
+    } catch (err: any) {
+      setBulkDeleteError(err.message || 'Error al eliminar pagos masivos');
+    } finally {
+      setDeleteBulkModal(prev => ({ ...prev, loading: false }));
+    }
   };
 
   const handleDeletePayment = async () => {
@@ -570,6 +731,55 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
             </div>
             <div className="modal-footer" style={{ borderTop: 'none', justifyContent: 'center' }}>
               <button className="btn-secondary" style={{ border: 'none' }} onClick={() => { setDeletePaymentModal({ isOpen: false, payment: null, loading: false }); setDeletePassword(''); setDeleteError(''); setShowDeletePassword(false); }}>Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Bulk Payments Modal */}
+      {deleteBulkModal.isOpen && (
+        <div className="modal-overlay" style={{ zIndex: 4000 }}>
+          <div className="modal-content" style={{ maxWidth: '380px', border: `1px solid #ef444430` }}>
+            <div className="modal-header" style={{ borderBottom: 'none', paddingBottom: 0 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', gap: '0.5rem' }}>
+                <div style={{ background: '#ef444415', padding: '1rem', borderRadius: '50%' }}>
+                  <Trash2 size={32} color="#ef4444" />
+                </div>
+                <h3 className="modal-title" style={{ textAlign: 'center' }}>Eliminación Masiva</h3>
+                <p style={{ color: '#94a3b8', fontSize: '0.85rem', textAlign: 'center', margin: 0 }}>
+                  Se eliminarán permanentemente <strong>{filteredPaymentsList.length} pagos</strong> que coinciden con la búsqueda actual. Esta acción requiere contraseña administrativa.
+                </p>
+              </div>
+            </div>
+            <div className="modal-body" style={{ paddingTop: '1.5rem' }}>
+              <div className="form-group">
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type={showBulkDeletePassword ? "text" : "password"}
+                    className="input-field"
+                    value={bulkDeletePassword}
+                    onChange={e => { setBulkDeletePassword(e.target.value); setBulkDeleteError(''); }}
+                    placeholder="Contraseña administrativa"
+                    autoFocus
+                    style={{ textAlign: 'center', fontSize: '1.1rem', letterSpacing: bulkDeletePassword && !showBulkDeletePassword ? '4px' : 'normal' }}
+                  />
+                  <button type="button" onClick={() => setShowBulkDeletePassword(!showBulkDeletePassword)} style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
+                    {showBulkDeletePassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+                {bulkDeleteError && <p style={{ color: '#ef4444', fontSize: '0.8rem', textAlign: 'center', marginTop: '0.5rem', fontWeight: 'bold' }}>{bulkDeleteError}</p>}
+              </div>
+              <button
+                className="btn-danger"
+                style={{ width: '100%', marginTop: '0.5rem' }}
+                onClick={() => handleExecuteBulkDelete(filteredPaymentsList.map(p => p.id))}
+                disabled={deleteBulkModal.loading}
+              >
+                {deleteBulkModal.loading ? 'Eliminando...' : 'Confirmar Eliminación Masiva'}
+              </button>
+            </div>
+            <div className="modal-footer" style={{ borderTop: 'none', justifyContent: 'center' }}>
+              <button className="btn-secondary" style={{ border: 'none' }} onClick={() => { setDeleteBulkModal({ isOpen: false, loading: false }); setBulkDeletePassword(''); setBulkDeleteError(''); setShowBulkDeletePassword(false); }}>Cancelar</button>
             </div>
           </div>
         </div>
