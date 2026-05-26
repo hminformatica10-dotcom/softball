@@ -52,7 +52,9 @@ export const translations: Record<string, Record<string, string>> = {
     "Control de Asistencia y Pagos por Juego": "Control de Asistencia y Pagos por Juego",
     "Reporte de Ingresos y Gastos": "Reporte de Ingresos y Gastos",
     "Tipo de Reporte": "Tipo de Reporte",
-    "Generar PDF": "Generar PDF"
+    "Generar PDF": "Generar PDF",
+    "Notas": "Notas",
+    "Notas del Equipo": "Notas del Equipo"
   },
   en: {
     "Configuración y Equipos": "Settings and Teams",
@@ -107,7 +109,9 @@ export const translations: Record<string, Record<string, string>> = {
     "Control de Asistencia y Pagos por Juego": "Attendance and Game Payments Control",
     "Reporte de Ingresos y Gastos": "Income and Expenses Report",
     "Tipo de Reporte": "Report Type",
-    "Generar PDF": "Generate PDF"
+    "Generar PDF": "Generate PDF",
+    "Notas": "Notes",
+    "Notas del Equipo": "Team Notes"
   }
 };
 

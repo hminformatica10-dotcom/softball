@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, Download, BarChart2, TrendingUp, TrendingDown, ClipboardCheck, Sliders, Eye, AlertCircle, CheckCircle, Loader, Share2 } from 'lucide-react';
+import { Search, Download, BarChart2, TrendingUp, TrendingDown, ClipboardCheck, Sliders, Eye, AlertCircle, CheckCircle, Loader, Share2, FileText, FileSpreadsheet } from 'lucide-react';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -82,14 +82,14 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
     setActiveChart(chartView);
   }, [chartView]);
 
-  const filteredReportPayments = reportType === 'Gastos' || reportType === 'Todos' ? [] : payments.filter(p => {
+  const filteredReportPayments = reportType === 'Gastos' ? [] : payments.filter(p => {
     const matchSearch = p.playerName.toLowerCase().includes(reportSearch.toLowerCase()) || 
                        p.description.toLowerCase().includes(reportSearch.toLowerCase());
     const matchPlayer = !reportPlayerFilter || p.playerId === reportPlayerFilter;
     return matchSearch && matchPlayer && isDateInRange(p.eventDate || p.date || '');
   });
 
-  const filteredReportExpenses = reportType === 'Ingresos' || reportType === 'Todos' ? [] : expenses.filter(e => {
+  const filteredReportExpenses = reportType === 'Ingresos' ? [] : expenses.filter(e => {
     const matchSearch = e.category.toLowerCase().includes(reportSearch.toLowerCase()) ||
                         e.description.toLowerCase().includes(reportSearch.toLowerCase());
     return matchSearch && isDateInRange(e.eventDate || e.date || '');
@@ -663,6 +663,8 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
                 style={{ 
                   width: '100%', 
                   background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', 
+                  color: '#0f172a',
+                  fontWeight: '700',
                   padding: '0.6rem', 
                   gap: '0.4rem', 
                   fontSize: '0.85rem', 
@@ -679,7 +681,7 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
                   </>
                 ) : (
                   <>
-                    <Download size={18} /> Descargar
+                    <Download size={18} /> Exportar
                   </>
                 )}
               </button>
@@ -690,26 +692,26 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
                   top: '100%',
                   right: 0,
                   marginTop: '0.5rem',
-                  background: 'rgba(15, 23, 42, 0.95)',
+                  background: 'rgba(15, 23, 42, 0.98)',
                   border: '1px solid rgba(255,255,255,0.2)',
                   borderRadius: '12px',
                   backdropFilter: 'blur(10px)',
-                  boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
+                  boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
                   zIndex: 1000,
-                  minWidth: '180px',
+                  minWidth: '170px',
                   overflow: 'hidden'
                 }}>
                   <button 
                     onClick={() => { void exportPDFModern(); }}
                     style={{
                       width: '100%',
-                      padding: '0.75rem 1rem',
+                      padding: '0.7rem 0.9rem',
                       border: 'none',
                       background: 'transparent',
                       color: '#f8fafc',
                       textAlign: 'left',
                       cursor: 'pointer',
-                      fontSize: '0.9rem',
+                      fontSize: '0.85rem',
                       display: 'flex',
                       alignItems: 'center',
                       gap: '0.5rem',
@@ -719,20 +721,20 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
                     onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
                     onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                   >
-                    📄 Descargar PDF
+                    <FileText size={14} /> PDF
                   </button>
                   
                   <button 
                     onClick={() => { void exportExcelModern(); }}
                     style={{
                       width: '100%',
-                      padding: '0.75rem 1rem',
+                      padding: '0.7rem 0.9rem',
                       border: 'none',
                       background: 'transparent',
                       color: '#f8fafc',
                       textAlign: 'left',
                       cursor: 'pointer',
-                      fontSize: '0.9rem',
+                      fontSize: '0.85rem',
                       display: 'flex',
                       alignItems: 'center',
                       gap: '0.5rem',
@@ -742,20 +744,20 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
                     onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
                     onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                   >
-                    📊 Descargar Excel
+                    <FileSpreadsheet size={14} /> Excel
                   </button>
                   
                   <button 
                     onClick={() => { void shareReportAsNative(); }}
                     style={{
                       width: '100%',
-                      padding: '0.75rem 1rem',
+                      padding: '0.7rem 0.9rem',
                       border: 'none',
                       background: 'transparent',
                       color: '#f8fafc',
                       textAlign: 'left',
                       cursor: 'pointer',
-                      fontSize: '0.9rem',
+                      fontSize: '0.85rem',
                       display: 'flex',
                       alignItems: 'center',
                       gap: '0.5rem',
@@ -764,7 +766,7 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
                     onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
                     onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                   >
-                    <Share2 size={16} /> Compartir
+                    <Share2 size={14} /> Compartir
                   </button>
                 </div>
               )}

@@ -66,3 +66,14 @@ export interface AppConfig {
   currency?: string;
   adminPassword?: string;
 }
+
+export interface Note {
+  id?: string;
+  _id?: string;
+  userId?: string;
+  teamId?: string;
+  title?: string;
+  content: string;
+  createdAt?: string;
+}
+

@@ -5,7 +5,7 @@ import { App as CapApp } from '@capacitor/app';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { Capacitor } from '@capacitor/core';
 import { jwtDecode } from 'jwt-decode';
-import { Users, User, TrendingUp, Sliders, Trash2, Activity, Home, DollarSign, CreditCard, BarChart2, PlusCircle, Edit2, AlertCircle, Search, Settings, Calendar, ClipboardCheck, Menu, X, Wifi, WifiOff, Lock, ShieldCheck, Eye, EyeOff, RefreshCw } from 'lucide-react';
+import { Users, User, TrendingUp, Sliders, Trash2, Activity, Home, DollarSign, CreditCard, BarChart2, PlusCircle, Edit2, AlertCircle, Search, Settings, Calendar, ClipboardCheck, Menu, X, Wifi, WifiOff, Lock, ShieldCheck, Eye, EyeOff, RefreshCw, FileText } from 'lucide-react';
 import type { Player, Payment, Expense, Game, AppConfig, PaymentConcept } from './types';
 import { isOlderThan24h } from './utils';
 import { DashboardTab } from './components/tabs/DashboardTab';
@@ -51,6 +51,8 @@ import { ExpensesTab } from './components/tabs/ExpensesTab';
 import { AttendanceTab } from './components/tabs/AttendanceTab';
 import { DebtsTab } from './components/tabs/DebtsTab';
 import { ReportsTab } from './components/tabs/ReportsTab';
+import { NotesTab } from './components/tabs/NotesTab';
+import type { Player, Payment, PaymentConcept, Expense, Game, AppConfig, Note } from './types';
 
 
 const getTodayString = () => {
@@ -246,6 +248,7 @@ function App() {
   const GAME_API_URL = `${apiUrl}/api/games`;
   const TEAM_API_URL = `${apiUrl}/api/teams`;
   const CONCEPT_API_URL = `${apiUrl}/api/payment-concepts`;
+  const NOTE_API_URL = `${apiUrl}/api/notes`;
 
   const [user, setUser] = useState<Record<string, unknown> | null>(null); // Auth State
   const [activeTab, setActiveTab] = useState('Inicio');
@@ -264,6 +267,9 @@ function App() {
 
   const [paymentConcepts, setPaymentConcepts] = useState<PaymentConcept[]>([]);
   const [loadingConcepts, setLoadingConcepts] = useState(true);
+
+  const [notes, setNotes] = useState<Note[]>([]);
+
 
   const [formData, setFormData] = useState({
     name: '',
@@ -863,6 +869,7 @@ function App() {
     setPayments([]);
     setExpenses([]);
     setGames([]);
+    setNotes([]);
     localStorage.removeItem('softball_user');
   };
 
@@ -1145,6 +1152,8 @@ function App() {
   const fetchExpenses = () => fetchData(`${apiUrl}/api/expenses`, `softball_expenses_${activeTeamId}`, setExpenses, () => { });
   const fetchGames = () => fetchData(`${apiUrl}/api/games`, `softball_games_${activeTeamId}`, setGames, setLoadingGames);
   const fetchPaymentConcepts = () => fetchData(`${apiUrl}/api/payment-concepts`, `softball_concepts_${activeTeamId}`, setPaymentConcepts, setLoadingConcepts);
+  const fetchNotes = () => fetchData(`${apiUrl}/api/notes`, `softball_notes_${activeTeamId}`, setNotes, () => { });
+
 
   const mutateData = async <T extends { id?: string }>(
     url: string,
@@ -1306,6 +1315,7 @@ function App() {
       fetchExpenses();
       fetchGames();
       fetchPaymentConcepts();
+      fetchNotes();
     }
   }, [activeTeamId, user]);
   /* eslint-enable react-hooks/exhaustive-deps */
@@ -2477,7 +2487,8 @@ function App() {
     { id: 'Pagos', title: t('Pagos', config.language), icon: DollarSign },
     { id: 'Gastos', title: t('Gastos', config.language), icon: CreditCard },
     { id: 'Morosidad', title: t('Pendientes de Cobro', config.language), icon: AlertCircle },
-    { id: 'Reportes', title: t('Reportes', config.language), icon: BarChart2 }
+    { id: 'Reportes', title: t('Reportes', config.language), icon: BarChart2 },
+    { id: 'Notas', title: t('Notas', config.language), icon: FileText }
   ];
 
   const renderContent = () => {
@@ -2636,6 +2647,18 @@ function App() {
             setViewingReceipt={setViewingReceipt}
           />
         );
+      case 'Notas':
+        return (
+          <NotesTab 
+            config={config}
+            notes={notes}
+            setNotes={setNotes}
+            activeTeamId={activeTeamId}
+            NOTE_API_URL={NOTE_API_URL}
+            mutateData={mutateData as any}
+            formatDate={formatDate}
+          />
+        );
       default: return null;
     }
   };
@@ -2694,7 +2717,7 @@ function App() {
           })}
 
           <div style={{ padding: '1rem 1rem 0.25rem', fontSize: '0.75rem', fontWeight: '800', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '1px' }}>Finanzas & Admin</div>
-          {navItems.filter(i => ['Asistencia', 'Pagos', 'Gastos', 'Morosidad', 'Reportes'].includes(i.id)).map((item) => {
+          {navItems.filter(i => ['Asistencia', 'Pagos', 'Gastos', 'Morosidad', 'Reportes', 'Notas'].includes(i.id)).map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
             return (

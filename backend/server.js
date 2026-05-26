@@ -215,12 +215,30 @@ paymentConceptSchema.set('toJSON', {
   }
 });
 
+const noteSchema = new mongoose.Schema({
+  userId: { type: String, required: true },
+  teamId: { type: String, required: true },
+  title: { type: String, default: '' },
+  content: { type: String, required: true },
+  createdAt: { type: Date, default: Date.now }
+});
+
+noteSchema.set('toJSON', {
+  transform: (document, returnedObject) => {
+    returnedObject.id = returnedObject._id.toString();
+    delete returnedObject._id;
+    delete returnedObject.__v;
+  }
+});
+
 const Team = mongoose.model('Team', teamSchema);
 const Player = mongoose.model('Player', playerSchema);
 const Payment = mongoose.model('Payment', paymentSchema);
 const Expense = mongoose.model('Expense', expenseSchema);
 const Game = mongoose.model('Game', gameSchema);
 const PaymentConcept = mongoose.model('PaymentConcept', paymentConceptSchema);
+const Note = mongoose.model('Note', noteSchema);
+
 
 
 // --- Rutas Base ---
@@ -838,6 +856,88 @@ app.delete('/api/games/:id', getUserId, requireTeam, async (req, res) => {
   }
 });
 
+// --- Notes Routes ---
+
+app.get('/api/notes', getUserId, requireTeam, async (req, res) => {
+  try {
+    console.log(`\n📥 [GET /api/notes] Obteniendo notas`);
+    console.log(`   User ID: ${req.userId}`);
+    console.log(`   Team ID: ${req.teamId}`);
+    const notes = await Note.find({ userId: req.userId, teamId: req.teamId }).sort({ createdAt: -1 });
+    console.log(`   Notas encontradas: ${notes.length}`);
+    res.json(notes);
+  } catch (err) {
+    console.error(`   Error: ${err.message}`);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/notes', getUserId, requireTeam, async (req, res) => {
+  try {
+    console.log(`\n📥 [POST /api/notes] Creando nota`);
+    console.log(`   User ID: ${req.userId}`);
+    console.log(`   Team ID: ${req.teamId}`);
+    
+    if (!req.body.content || req.body.content.trim() === '') {
+      return res.status(400).json({ error: 'El contenido de la nota es obligatorio.' });
+    }
+
+    const newNote = new Note({
+      userId: req.userId,
+      teamId: req.teamId,
+      title: req.body.title || '',
+      content: req.body.content
+    });
+    
+    const savedNote = await newNote.save();
+    console.log(`   Nota guardada: ${savedNote._id}`);
+    res.status(201).json(savedNote);
+  } catch (err) {
+    console.error(`   Error: ${err.message}`);
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.put('/api/notes/:id', getUserId, requireTeam, async (req, res) => {
+  try {
+    console.log(`\n📥 [PUT /api/notes/:id] Actualizando nota`);
+    console.log(`   Note ID: ${req.params.id}`);
+    
+    const updatedNote = await Note.findOneAndUpdate(
+      { _id: req.params.id, userId: req.userId, teamId: req.teamId },
+      {
+        title: req.body.title !== undefined ? req.body.title : undefined,
+        content: req.body.content !== undefined ? req.body.content : undefined
+      },
+      { new: true }
+    );
+    
+    if (!updatedNote) {
+      return res.status(404).json({ error: 'Nota no encontrada' });
+    }
+    
+    console.log(`   Nota actualizada`);
+    res.json(updatedNote);
+  } catch (err) {
+    console.error(`   Error: ${err.message}`);
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.delete('/api/notes/:id', getUserId, requireTeam, async (req, res) => {
+  try {
+    console.log(`\n📥 [DELETE /api/notes/:id] Eliminando nota`);
+    console.log(`   Note ID: ${req.params.id}`);
+    
+    const deletedNote = await Note.findOneAndDelete({ _id: req.params.id, userId: req.userId, teamId: req.teamId });
+    if (!deletedNote) return res.status(404).json({ error: 'Note not found' });
+    res.status(204).send();
+  } catch (err) {
+    console.error(`   Error: ${err.message}`);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // --- BACKUP & RESTORE ROUTES ---
 
 app.get('/api/backup', getUserId, async (req, res) => {
@@ -847,10 +947,11 @@ app.get('/api/backup', getUserId, async (req, res) => {
     const payments = await Payment.find({ userId: req.userId });
     const expenses = await Expense.find({ userId: req.userId });
     const games = await Game.find({ userId: req.userId });
+    const notes = await Note.find({ userId: req.userId });
 
     res.json({
       timestamp: new Date().toISOString(),
-      data: { teams, players, payments, expenses, games }
+      data: { teams, players, payments, expenses, games, notes }
     });
   } catch (err) {
     res.status(500).json({ error: 'Failed to generate backup' });
@@ -877,6 +978,7 @@ app.post('/api/restore', getUserId, async (req, res) => {
     const payments = formatItems(backupData.payments);
     const expenses = formatItems(backupData.expenses);
     const games = formatItems(backupData.games);
+    const notes = formatItems(backupData.notes);
 
     // Wipe current user data
     await Team.deleteMany({ userId: req.userId });
@@ -884,6 +986,7 @@ app.post('/api/restore', getUserId, async (req, res) => {
     await Payment.deleteMany({ userId: req.userId });
     await Expense.deleteMany({ userId: req.userId });
     await Game.deleteMany({ userId: req.userId });
+    await Note.deleteMany({ userId: req.userId });
 
     // Restore new data
     if (teams.length > 0) await Team.insertMany(teams);
@@ -891,6 +994,7 @@ app.post('/api/restore', getUserId, async (req, res) => {
     if (payments.length > 0) await Payment.insertMany(payments);
     if (expenses.length > 0) await Expense.insertMany(expenses);
     if (games.length > 0) await Game.insertMany(games);
+    if (notes.length > 0) await Note.insertMany(notes);
 
     res.json({ message: 'Backup restaurado correctamente.' });
   } catch (err) {
@@ -898,6 +1002,7 @@ app.post('/api/restore', getUserId, async (req, res) => {
     res.status(500).json({ error: 'Fallo al restaurar Backup' });
   }
 });
+
 
 // --- Servir Frontend Estático (Opcional) ---
 const frontendPath = path.join(__dirname, 'public');
