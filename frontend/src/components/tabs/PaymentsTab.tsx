@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { DollarSign, Activity, Trash2, PlusCircle, LayoutGrid, User, Layers, ArrowLeft, CheckCircle2, Edit2, X, Lock, Eye, EyeOff, Search, Calendar } from 'lucide-react';
+import { DollarSign, Activity, Trash2, PlusCircle, LayoutGrid, User, Layers, ArrowLeft, CheckCircle2, Edit2, X, Lock, Eye, EyeOff, Search, Calendar, ChevronDown } from 'lucide-react';
 import { t } from '../../translations';
 import { isOlderThan24h } from '../../utils';
 import type { Player, Payment, AppConfig, PaymentConcept, Game } from '../../types';
@@ -19,14 +19,14 @@ interface PaymentsTabProps {
   handleConceptSubmit: (name: string, amount: number) => void;
   deleteConcept: (id: string) => void;
   openEditModal?: (type: string, data: any) => void;
-  onDeletePayment?: (paymentId: string, password: string) => Promise<void>;
+  onDeletePayment?: (paymentId: string, password?: string) => Promise<void>;
   showForm: boolean;
   setShowForm: (val: boolean) => void;
   
   // Added for filters
   games?: Game[];
   formatDate?: (val: string) => string;
-  onDeleteBulkPayments?: (paymentIds: string[], password: string) => Promise<void>;
+  onDeleteBulkPayments?: (paymentIds: string[], password?: string) => Promise<void>;
 }
 
 export const PaymentsTab: React.FC<PaymentsTabProps> = ({
@@ -60,6 +60,7 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
   const [selectedGameId, setSelectedGameId] = useState<string>('all');
   const [filterDate, setFilterDate] = useState<string>('');
   const [showAllRecent, setShowAllRecent] = useState(false);
+  const [showGameDropdown, setShowGameDropdown] = useState(false);
 
   // Bulk Delete States
   const [deleteBulkModal, setDeleteBulkModal] = useState<{ isOpen: boolean, loading: boolean }>({ isOpen: false, loading: false });
@@ -210,68 +211,174 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
           <div style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-            gap: '0.75rem',
-            padding: '1.2rem',
-            background: 'rgba(255, 255, 255, 0.03)',
-            border: '1px solid rgba(255, 255, 255, 0.06)',
+            gap: '1rem',
+            padding: '1.25rem',
+            background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.85) 100%)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
             borderRadius: '16px',
+            boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.25)',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
             marginBottom: '1.25rem'
           }}>
             {/* Búsqueda por Responsable */}
             <div className="form-group" style={{ margin: 0 }}>
-              <label className="form-label" style={{ fontSize: '0.75rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <User size={12} /> Responsable
+              <label className="form-label" style={{ fontSize: '0.75rem', color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: '700' }}>
+                <User size={14} color="#22c55e" /> Responsable
               </label>
-              <input 
-                type="text" 
-                className="input-field" 
-                placeholder="Buscar por responsable..." 
-                value={searchResponsible}
-                onChange={e => setSearchResponsible(e.target.value)}
-                style={{ padding: '0.5rem 0.75rem', fontSize: '0.85rem' }}
-              />
+              <div style={{ position: 'relative' }}>
+                <input 
+                  type="text" 
+                  className="input-field" 
+                  placeholder="Buscar por responsable..." 
+                  value={searchResponsible}
+                  onChange={e => setSearchResponsible(e.target.value)}
+                  style={{ 
+                    padding: '0.6rem 0.8rem', 
+                    fontSize: '0.85rem',
+                    background: 'rgba(15, 23, 42, 0.5)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    borderRadius: '10px',
+                    color: '#f8fafc'
+                  }}
+                />
+              </div>
             </div>
 
             {/* Búsqueda por Juego */}
             <div className="form-group" style={{ margin: 0 }}>
-              <label className="form-label" style={{ fontSize: '0.75rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <Search size={12} /> Partido / Juego
+              <label className="form-label" style={{ fontSize: '0.75rem', color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: '700' }}>
+                <Search size={14} color="#22c55e" /> Partido / Juego
               </label>
-              <select
-                className="input-field"
-                value={selectedGameId}
-                onChange={e => setSelectedGameId(e.target.value)}
-                style={{ 
-                  padding: '0.5rem 0.75rem', 
-                  fontSize: '0.85rem', 
-                  colorScheme: 'dark', 
-                  color: '#f8fafc', 
-                  background: '#0f172a',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
-                  borderRadius: '10px'
-                }}
-              >
-                <option value="all">Todos los juegos</option>
-                {(games || []).map(game => (
-                  <option key={game.id} value={game.id}>
-                    Vs {game.opponent} ({formatDate ? formatDate(game.eventDate || game.date || '') : (game.eventDate || game.date || '')})
-                  </option>
-                ))}
-              </select>
+              <div style={{ position: 'relative' }}>
+                <button 
+                  type="button" 
+                  onClick={() => setShowGameDropdown(!showGameDropdown)}
+                  className="input-field"
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    background: 'rgba(15, 23, 42, 0.5)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    color: '#f8fafc',
+                    fontSize: '0.85rem',
+                    padding: '0.6rem 0.8rem',
+                    width: '100%',
+                    textAlign: 'left',
+                    borderRadius: '10px',
+                    cursor: 'pointer',
+                    minHeight: '40px'
+                  }}
+                >
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {selectedGameId === 'all' 
+                      ? 'Todos los juegos' 
+                      : `Vs ${games.find(g => g.id === selectedGameId)?.opponent || ''}`
+                    }
+                  </span>
+                  <ChevronDown size={16} style={{ opacity: 0.8, color: '#22c55e' }} />
+                </button>
+
+                {showGameDropdown && (
+                  <>
+                    <div 
+                      onClick={() => setShowGameDropdown(false)} 
+                      style={{
+                        position: 'fixed',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        zIndex: 998,
+                        background: 'transparent'
+                      }}
+                    />
+                    <div style={{
+                      position: 'absolute',
+                      top: '100%',
+                      left: 0,
+                      right: 0,
+                      marginTop: '0.35rem',
+                      background: 'rgba(15, 23, 42, 0.98)',
+                      border: '1px solid rgba(255, 255, 255, 0.12)',
+                      borderRadius: '12px',
+                      boxShadow: '0 10px 25px rgba(0, 0, 0, 0.6)',
+                      zIndex: 999,
+                      maxHeight: '220px',
+                      overflowY: 'auto',
+                      backdropFilter: 'blur(16px)',
+                      WebkitBackdropFilter: 'blur(16px)'
+                    }}>
+                      <div 
+                        onClick={() => { setSelectedGameId('all'); setShowGameDropdown(false); }}
+                        style={{
+                          padding: '0.7rem 0.9rem',
+                          cursor: 'pointer',
+                          fontSize: '0.85rem',
+                          color: selectedGameId === 'all' ? '#22c55e' : '#cbd5e1',
+                          background: selectedGameId === 'all' ? 'rgba(34, 197, 94, 0.15)' : 'transparent',
+                          borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+                          transition: 'background 0.2s',
+                          fontWeight: selectedGameId === 'all' ? '700' : '400'
+                        }}
+                        onMouseEnter={(e) => { if (selectedGameId !== 'all') e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; }}
+                        onMouseLeave={(e) => { if (selectedGameId !== 'all') e.currentTarget.style.background = 'transparent'; }}
+                      >
+                        Todos los juegos
+                      </div>
+                      {(games || []).map(game => {
+                        const isSelected = selectedGameId === game.id;
+                        const gameDateStr = formatDate ? formatDate(game.eventDate || game.date || '') : (game.eventDate || game.date || '');
+                        return (
+                          <div 
+                            key={game.id}
+                            onClick={() => { setSelectedGameId(game.id); setShowGameDropdown(false); }}
+                            style={{
+                              padding: '0.7rem 0.9rem',
+                              cursor: 'pointer',
+                              fontSize: '0.85rem',
+                              color: isSelected ? '#22c55e' : '#cbd5e1',
+                              background: isSelected ? 'rgba(34, 197, 94, 0.15)' : 'transparent',
+                              borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+                              transition: 'background 0.2s',
+                              fontWeight: isSelected ? '700' : '400'
+                            }}
+                            onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; }}
+                            onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.background = 'transparent'; }}
+                          >
+                            Vs {game.opponent} <span style={{ fontSize: '0.75rem', opacity: 0.6, marginLeft: '4px' }}>({gameDateStr})</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
 
             {/* Búsqueda por Fecha */}
             <div className="form-group" style={{ margin: 0 }}>
-              <label className="form-label" style={{ fontSize: '0.75rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <Calendar size={12} /> Fecha
+              <label className="form-label" style={{ fontSize: '0.75rem', color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: '700' }}>
+                <Calendar size={14} color="#22c55e" /> Fecha
               </label>
-              <input 
-                type="date" 
-                className="input-field" 
-                value={filterDate}
-                onChange={e => setFilterDate(e.target.value)}
-                style={{ padding: '0.5rem 0.75rem', fontSize: '0.85rem', colorScheme: 'dark' }}
-              />
+              <div style={{ position: 'relative' }}>
+                <input 
+                  type="date" 
+                  className="input-field" 
+                  value={filterDate}
+                  onChange={e => setFilterDate(e.target.value)}
+                  style={{ 
+                    padding: '0.6rem 0.8rem', 
+                    fontSize: '0.85rem', 
+                    colorScheme: 'dark',
+                    background: 'rgba(15, 23, 42, 0.5)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    borderRadius: '10px',
+                    color: '#f8fafc'
+                  }}
+                />
+              </div>
             </div>
           </div>
 
@@ -393,14 +500,11 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
   };
 
   const handleExecuteBulkDelete = async (paymentIds: string[]) => {
-    if (!bulkDeletePassword) {
-      setBulkDeleteError('Ingresa la contraseña');
-      return;
-    }
+    if (!paymentIds || paymentIds.length === 0) return;
 
     try {
       setDeleteBulkModal({ isOpen: true, loading: true });
-      await onDeleteBulkPayments?.(paymentIds, bulkDeletePassword);
+      await onDeleteBulkPayments?.(paymentIds);
       
       setDeleteBulkModal({ isOpen: false, loading: false });
       setBulkDeletePassword('');
@@ -418,16 +522,11 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
   };
 
   const handleDeletePayment = async () => {
-    if (!deletePassword) {
-      setDeleteError('Ingresa la contraseña');
-      return;
-    }
-
     if (!deletePaymentModal.payment) return;
 
     try {
       setDeletePaymentModal({ ...deletePaymentModal, loading: true });
-      await onDeletePayment?.(deletePaymentModal.payment.id, deletePassword);
+      await onDeletePayment?.(deletePaymentModal.payment.id);
       setDeletePaymentModal({ isOpen: false, payment: null, loading: false });
       setDeletePassword('');
       setDeleteError('');
@@ -697,40 +796,30 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
                   <Trash2 size={32} color="#ef4444" />
                 </div>
                 <h3 className="modal-title" style={{ textAlign: 'center' }}>Eliminar Pago</h3>
-                <p style={{ color: '#94a3b8', fontSize: '0.85rem', textAlign: 'center', margin: 0 }}>
-                  Se eliminará el pago de {formatCurrency(deletePaymentModal.payment.amount)} de {deletePaymentModal.payment.playerName}. Esta acción requiere contraseña administrativa.
+                <p style={{ color: '#cbd5e1', fontSize: '0.9rem', textAlign: 'center', margin: 0, fontWeight: '500' }}>
+                  ¿Estás seguro de que deseas eliminar permanentemente el pago de <strong>{formatCurrency(deletePaymentModal.payment.amount)}</strong> de <strong>{deletePaymentModal.payment.playerName}</strong>?
                 </p>
               </div>
             </div>
-            <div className="modal-body" style={{ paddingTop: '1.5rem' }}>
-              <div className="form-group">
-                <div style={{ position: 'relative' }}>
-                  <input
-                    type={showDeletePassword ? "text" : "password"}
-                    className="input-field"
-                    value={deletePassword}
-                    onChange={e => { setDeletePassword(e.target.value); setDeleteError(''); }}
-                    placeholder="Contraseña administrativa"
-                    autoFocus
-                    style={{ textAlign: 'center', fontSize: '1.1rem', letterSpacing: deletePassword && !showDeletePassword ? '4px' : 'normal' }}
-                  />
-                  <button type="button" onClick={() => setShowDeletePassword(!showDeletePassword)} style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
-                    {showDeletePassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                </div>
-                {deleteError && <p style={{ color: '#ef4444', fontSize: '0.8rem', textAlign: 'center', marginTop: '0.5rem', fontWeight: 'bold' }}>{deleteError}</p>}
-              </div>
+            <div className="modal-body" style={{ paddingTop: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              {deleteError && <p style={{ color: '#ef4444', fontSize: '0.8rem', textAlign: 'center', fontWeight: 'bold' }}>{deleteError}</p>}
+              
               <button
                 className="btn-danger"
-                style={{ width: '100%', marginTop: '0.5rem' }}
+                style={{ width: '100%' }}
                 onClick={handleDeletePayment}
                 disabled={deletePaymentModal.loading}
               >
                 {deletePaymentModal.loading ? 'Eliminando...' : 'Confirmar Eliminación'}
               </button>
-            </div>
-            <div className="modal-footer" style={{ borderTop: 'none', justifyContent: 'center' }}>
-              <button className="btn-secondary" style={{ border: 'none' }} onClick={() => { setDeletePaymentModal({ isOpen: false, payment: null, loading: false }); setDeletePassword(''); setDeleteError(''); setShowDeletePassword(false); }}>Cancelar</button>
+              
+              <button 
+                className="btn-secondary" 
+                style={{ width: '100%', border: 'none', background: 'rgba(255,255,255,0.05)', marginTop: '0.25rem' }} 
+                onClick={() => { setDeletePaymentModal({ isOpen: false, payment: null, loading: false }); setDeletePassword(''); setDeleteError(''); setShowDeletePassword(false); }}
+              >
+                Cancelar
+              </button>
             </div>
           </div>
         </div>
@@ -746,40 +835,30 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
                   <Trash2 size={32} color="#ef4444" />
                 </div>
                 <h3 className="modal-title" style={{ textAlign: 'center' }}>Eliminación Masiva</h3>
-                <p style={{ color: '#94a3b8', fontSize: '0.85rem', textAlign: 'center', margin: 0 }}>
-                  Se eliminarán permanentemente <strong>{filteredPaymentsList.length} pagos</strong> que coinciden con la búsqueda actual. Esta acción requiere contraseña administrativa.
+                <p style={{ color: '#cbd5e1', fontSize: '0.9rem', textAlign: 'center', margin: 0, fontWeight: '500' }}>
+                  ¿Estás seguro de que deseas eliminar permanentemente los <strong>{filteredPaymentsList.length} pagos</strong> resultantes de la búsqueda actual? Esta acción es irreversible.
                 </p>
               </div>
             </div>
-            <div className="modal-body" style={{ paddingTop: '1.5rem' }}>
-              <div className="form-group">
-                <div style={{ position: 'relative' }}>
-                  <input
-                    type={showBulkDeletePassword ? "text" : "password"}
-                    className="input-field"
-                    value={bulkDeletePassword}
-                    onChange={e => { setBulkDeletePassword(e.target.value); setBulkDeleteError(''); }}
-                    placeholder="Contraseña administrativa"
-                    autoFocus
-                    style={{ textAlign: 'center', fontSize: '1.1rem', letterSpacing: bulkDeletePassword && !showBulkDeletePassword ? '4px' : 'normal' }}
-                  />
-                  <button type="button" onClick={() => setShowBulkDeletePassword(!showBulkDeletePassword)} style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
-                    {showBulkDeletePassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                </div>
-                {bulkDeleteError && <p style={{ color: '#ef4444', fontSize: '0.8rem', textAlign: 'center', marginTop: '0.5rem', fontWeight: 'bold' }}>{bulkDeleteError}</p>}
-              </div>
+            <div className="modal-body" style={{ paddingTop: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              {bulkDeleteError && <p style={{ color: '#ef4444', fontSize: '0.8rem', textAlign: 'center', fontWeight: 'bold' }}>{bulkDeleteError}</p>}
+              
               <button
                 className="btn-danger"
-                style={{ width: '100%', marginTop: '0.5rem' }}
+                style={{ width: '100%' }}
                 onClick={() => handleExecuteBulkDelete(filteredPaymentsList.map(p => p.id))}
                 disabled={deleteBulkModal.loading}
               >
                 {deleteBulkModal.loading ? 'Eliminando...' : 'Confirmar Eliminación Masiva'}
               </button>
-            </div>
-            <div className="modal-footer" style={{ borderTop: 'none', justifyContent: 'center' }}>
-              <button className="btn-secondary" style={{ border: 'none' }} onClick={() => { setDeleteBulkModal({ isOpen: false, loading: false }); setBulkDeletePassword(''); setBulkDeleteError(''); setShowBulkDeletePassword(false); }}>Cancelar</button>
+              
+              <button 
+                className="btn-secondary" 
+                style={{ width: '100%', border: 'none', background: 'rgba(255,255,255,0.05)', marginTop: '0.25rem' }} 
+                onClick={() => { setDeleteBulkModal({ isOpen: false, loading: false }); setBulkDeletePassword(''); setBulkDeleteError(''); setShowBulkDeletePassword(false); }}
+              >
+                Cancelar
+              </button>
             </div>
           </div>
         </div>

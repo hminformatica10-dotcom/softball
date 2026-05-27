@@ -1384,22 +1384,14 @@ function App() {
   };
 
 
-  const handleDeletePayment = async (paymentId: string, password: string): Promise<void> => {
-    if (!password || password !== config.adminPassword) {
-      throw new Error('Contraseña incorrecta');
-    }
-
+  const handleDeletePayment = async (paymentId: string, password?: string): Promise<void> => {
     const deleted = await mutateData(PAYMENT_API_URL, 'DELETE', paymentId, setPayments, `softball_payments_${activeTeamId}`, () => { });
     if (!deleted) {
       throw new Error('No se pudo eliminar el pago. Intenta de nuevo.');
     }
   };
 
-  const handleDeleteBulkPayments = async (paymentIds: string[], password: string): Promise<void> => {
-    if (!password || password !== config.adminPassword) {
-      throw new Error('Contraseña incorrecta');
-    }
-
+  const handleDeleteBulkPayments = async (paymentIds: string[], password?: string): Promise<void> => {
     if (!paymentIds || paymentIds.length === 0) return;
 
     for (const paymentId of paymentIds) {

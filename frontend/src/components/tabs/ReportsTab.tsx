@@ -90,9 +90,28 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
     return matchSearch && matchPlayer && isDateInRange(p.eventDate || p.date || '');
   });
 
-  const filteredReportExpenses = reportType === 'Ingresos' ? [] : expenses.filter(e => {
-    const matchSearch = e.category.toLowerCase().includes(reportSearch.toLowerCase()) ||
-                        e.description.toLowerCase().includes(reportSearch.toLowerCase());
+  const synthesizedGameExpenses = React.useMemo(() => {
+    return (games || [])
+      .filter(game => Number(game.fieldPayment || 0) > 0)
+      .map(game => ({
+        id: `game-field-${game.id}`,
+        category: 'Pago de Terreno',
+        amount: Number(game.fieldPayment),
+        description: `Pago de campo - Juego Vs ${game.opponent}`,
+        eventDate: game.eventDate || game.date || '',
+        date: game.eventDate || game.date || '',
+        responsible: '',
+        receipt: undefined
+      }));
+  }, [games]);
+
+  const allExpenses = React.useMemo(() => {
+    return [...expenses, ...synthesizedGameExpenses];
+  }, [expenses, synthesizedGameExpenses]);
+
+  const filteredReportExpenses = reportType === 'Ingresos' ? [] : allExpenses.filter(e => {
+    const matchSearch = (e.category || '').toLowerCase().includes(reportSearch.toLowerCase()) ||
+                        (e.description || '').toLowerCase().includes(reportSearch.toLowerCase());
     return matchSearch && isDateInRange(e.eventDate || e.date || '');
   });
 
@@ -320,7 +339,7 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
       return !safeGames.some(g => p.gameId === g.id || (p.notes && p.notes.includes(`Vs ${g.opponent}`)));
     });
 
-    const otherExpenses = filteredReportExpenses; // Keep all logged expenses to make sure no data is hidden
+    const otherExpenses = filteredReportExpenses.filter(e => !e.id.startsWith('game-field-')); // Exclude game field expenses to avoid double listing
 
     // 1. Render Game Sections
     if (gameGroups.length > 0) {
@@ -596,7 +615,7 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
         return !safeGames.some(g => p.gameId === g.id || (p.notes && p.notes.includes(`Vs ${g.opponent}`)));
       });
 
-      const otherExpenses = filteredReportExpenses;
+      const otherExpenses = filteredReportExpenses.filter(e => !e.id.startsWith('game-field-')); // Exclude game field expenses to avoid double listing
 
       const aoaData: any[][] = [];
       
