@@ -98,6 +98,7 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
         category: 'Pago de Terreno',
         amount: Number(game.fieldPayment),
         description: `Pago de campo - Juego Vs ${game.opponent}`,
+        gameId: game.id,
         eventDate: game.eventDate || game.date || '',
         date: game.eventDate || game.date || '',
         responsible: '',

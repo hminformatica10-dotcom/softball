@@ -1449,7 +1449,27 @@ function App() {
     };
 
     mutateData(GAME_API_URL, 'POST', payload, setGamesSorted, `softball_games_${activeTeamId}`, (success: boolean) => {
-      if (success) setGameFormData({ opponent: '', eventDate: getTodayString(), time: '', location: '', result: 'Pendiente', feePerPerson: '', fieldPayment: '' });
+      if (success) {
+        setGameFormData({ opponent: '', eventDate: getTodayString(), time: '', location: '', result: 'Pendiente', feePerPerson: '', fieldPayment: '' });
+
+        // If a fieldPayment was provided, also create an Expense record so reports reflect the cost
+        try {
+          const fp = payload.fieldPayment !== undefined && payload.fieldPayment !== '' ? Number(payload.fieldPayment) : 0;
+          if (fp && fp > 0) {
+            const expensePayload = {
+              category: 'Pago de Terreno',
+              amount: fp,
+              description: `Pago de campo - Juego Vs ${payload.opponent || ''}`,
+              eventDate: payload.eventDate || normalizeDate(getTodayString()),
+              responsible: ''
+            };
+            // Persist expense (optimistic/mutate helper handles offline queuing)
+            mutateData(EXPENSE_API_URL, 'POST', expensePayload, setExpenses, `softball_expenses_${activeTeamId}`, () => { });
+          }
+        } catch (err) {
+          console.warn('No se pudo crear gasto de terreno automáticamente:', err);
+        }
+      }
     });
   };
 
