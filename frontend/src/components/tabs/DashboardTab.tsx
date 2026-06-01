@@ -1,12 +1,9 @@
 import React from 'react';
 import { 
-  DollarSign, 
   CreditCard, 
-  UserPlus, 
   BarChart2,
   MapPin,
-  Search,
-  HelpCircle
+  Search
 } from 'lucide-react';
 import type { Player, Payment, Expense, AppConfig } from '../../types';
 
@@ -16,7 +13,6 @@ interface DashboardTabProps {
   payments: Payment[];
   expenses: Expense[];
   setActiveTab: (tab: string) => void;
-  formatDate: (date: string) => string;
   formatCurrency: (val: number) => string;
 }
 
@@ -26,7 +22,6 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
   payments,
   expenses,
   setActiveTab,
-  formatDate,
   formatCurrency
 }) => {
   const totalIncome = payments.reduce((acc, payment) => acc + Number(payment.amount || 0), 0);

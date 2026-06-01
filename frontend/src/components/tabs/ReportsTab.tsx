@@ -106,9 +106,13 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
       }));
   }, [games]);
 
+  const realExpensesWithoutFieldPayments = React.useMemo(() => {
+    return expenses.filter(e => e.category !== 'Pago de Terreno');
+  }, [expenses]);
+
   const allExpenses = React.useMemo(() => {
-    return [...expenses, ...synthesizedGameExpenses];
-  }, [expenses, synthesizedGameExpenses]);
+    return [...realExpensesWithoutFieldPayments, ...synthesizedGameExpenses];
+  }, [realExpensesWithoutFieldPayments, synthesizedGameExpenses]);
 
   const filteredReportExpenses = reportType === 'Ingresos' ? [] : allExpenses.filter(e => {
     const matchSearch = (e.category || '').toLowerCase().includes(reportSearch.toLowerCase()) ||

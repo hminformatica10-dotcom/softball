@@ -14,7 +14,6 @@ interface GamesTabProps {
   setGameSearch: (val: string) => void;
   renderSearchBar: (placeholder: string, value: string, setter: (val: string) => void) => React.ReactNode;
   renderDateFilter: () => React.ReactNode;
-  formatDate: (dateString: string) => string;
   formatCurrency: (val: number) => string;
   openEditModal: (type: string, item: any) => void;
   confirmDelete: (type: string, id: string) => void;
@@ -33,7 +32,6 @@ export const GamesTab: React.FC<GamesTabProps> = ({
   setGameSearch,
   renderSearchBar,
   renderDateFilter,
-  formatDate: _formatDate,
   formatCurrency,
   openEditModal,
   confirmDelete,

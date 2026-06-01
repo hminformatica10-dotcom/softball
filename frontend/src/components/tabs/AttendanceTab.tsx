@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ClipboardCheck, Trash2, Search, Calendar, ChevronDown, ChevronUp, Download, Loader, CheckCircle, AlertCircle, Share2, FileText, FileSpreadsheet } from 'lucide-react';
+import { ClipboardCheck, Trash2, Calendar, ChevronDown, ChevronUp, Download, Loader, CheckCircle, AlertCircle, Share2, FileText, FileSpreadsheet } from 'lucide-react';
 import { t } from '../../translations';
 import type { Game, Player, Payment, AppConfig } from '../../types';
 import jsPDF from 'jspdf';
@@ -50,7 +50,6 @@ interface AttendanceTabProps {
   formatDate: (dateString: string) => string;
   formatCurrency: (val: number) => string;
   normalizeDate: (dateString: string) => string;
-  handleQuickPayment: (player: Player, gameId: string, gameDateStr: string, gameOpponent: string, rawDate: string, gameFee?: number | string, fieldFee?: number | string) => void;
   setConfirmActionModal: (val: ConfirmActionModal) => void;
   setConfirmActionInput: (val: string) => void;
   confirmDelete: (type: string, id: string) => void;
@@ -72,7 +71,6 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
   formatDate,
   formatCurrency,
   normalizeDate,
-  handleQuickPayment,
   setConfirmActionModal,
   setConfirmActionInput,
   confirmDelete

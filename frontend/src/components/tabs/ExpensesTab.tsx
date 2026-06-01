@@ -1,6 +1,5 @@
-import { CreditCard, X, Edit2, Lock, Activity } from 'lucide-react';
+import { CreditCard, Edit2, Activity, Trash2 } from 'lucide-react';
 import { t } from '../../translations';
-import { isOlderThan24h } from '../../utils';
 import type { AppConfig, Expense } from '../../types';
 import React, { useState } from 'react';
 
@@ -13,6 +12,7 @@ interface ExpensesTabProps {
   expenses?: Expense[];
   formatCurrency?: (val: number) => string;
   openEditModal?: (type: string, data: any) => void;
+  confirmDelete?: (type: string, id: string) => void;
   showForm: boolean;
   setShowForm: (val: boolean) => void;
 }
@@ -26,10 +26,11 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({
   expenses = [],
   formatCurrency = (val) => `$${val.toFixed(2)}`,
   openEditModal,
+  confirmDelete,
   showForm,
   setShowForm
 }) => {
-  const [responsibleFilter, setResponsibleFilter] = useState('');
+  const [dateFilter, setDateFilter] = useState('');
 
   return (
     <div className="grid-layout">
@@ -93,22 +94,21 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({
         </h3>
         
         <div className="form-group" style={{ marginBottom: '1rem' }}>
-          <label className="form-label">{t('Filtrar por Responsable', config.language)}</label>
+          <label className="form-label">{t('Filtrar por Fecha', config.language)}</label>
           <input
-            type="text"
+            type="date"
             className="input-field"
-            placeholder="Buscar responsable..."
-            value={responsibleFilter}
-            onChange={e => setResponsibleFilter(e.target.value)}
+            value={dateFilter}
+            onChange={e => setDateFilter(e.target.value)}
             style={{ colorScheme: 'dark', width: '100%' }}
           />
         </div>
         
         {(() => {
-          const filteredByResponsible = responsibleFilter
-            ? expenses.filter(e => e.responsible?.toLowerCase().includes(responsibleFilter.toLowerCase()))
+          const filteredByDate = dateFilter
+            ? expenses.filter(e => (e.eventDate && e.eventDate.startsWith(dateFilter)) || (e.date && e.date.startsWith(dateFilter)))
             : expenses;
-          const recentExpenses = filteredByResponsible.sort((a, b) => new Date(b.eventDate).getTime() - new Date(a.eventDate).getTime()).slice(0, responsibleFilter ? undefined : 5);
+          const recentExpenses = filteredByDate.sort((a, b) => new Date(b.eventDate).getTime() - new Date(a.eventDate).getTime()).slice(0, dateFilter ? undefined : 5);
 
           return recentExpenses.length === 0 ? (
             <div className="empty-state">
@@ -131,13 +131,27 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({
                         <button 
                           className="btn-icon" 
                           onClick={() => openEditModal('expense', expense)}
-                          title={isOlderThan24h(expense.registrationDate) ? "Este gasto requiere contraseña para editar" : "Editar gasto"}
+                          title="Editar gasto"
                           style={{ 
                             opacity: 1,
                             cursor: 'pointer'
                           }}
                         >
-                          {isOlderThan24h(expense.registrationDate) ? <Lock size={16} color="#f59e0b" /> : <Edit2 size={16} />}
+                          <Edit2 size={16} />
+                        </button>
+                      )}
+                      {confirmDelete && (
+                        <button 
+                          className="btn-icon" 
+                          onClick={() => confirmDelete('expense', expense.id)}
+                          title="Eliminar gasto"
+                          style={{ 
+                            opacity: 1,
+                            cursor: 'pointer',
+                            color: '#ef4444'
+                          }}
+                        >
+                          <Trash2 size={16} />
                         </button>
                       )}
                     </div>

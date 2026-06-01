@@ -41,6 +41,7 @@ type OfflineAction = {
   method: 'POST' | 'PUT' | 'DELETE';
   body: Record<string, unknown> | null;
   teamId: string;
+  tempId?: string;
 };
 
 const isError = (value: unknown): value is Error => value instanceof Error;
@@ -988,6 +989,31 @@ function App() {
     }
   };
 
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  const replaceTempIds = (value: any, idMap: Record<string, string>): any => {
+    if (typeof value === 'string') {
+      let result = value;
+      for (const tempId of Object.keys(idMap)) {
+        if (result.includes(tempId)) {
+          result = result.replaceAll(tempId, idMap[tempId]);
+        }
+      }
+      return result;
+    }
+    if (Array.isArray(value)) {
+      return value.map(item => replaceTempIds(item, idMap));
+    }
+    if (value && typeof value === 'object') {
+      const updated: Record<string, any> = {};
+      for (const key of Object.keys(value)) {
+        updated[key] = replaceTempIds(value[key], idMap);
+      }
+      return updated;
+    }
+    return value;
+  };
+  /* eslint-enable @typescript-eslint/no-explicit-any */
+
   const processSyncQueue = async () => {
     if (isSyncingRef.current) {
       console.log('App: processSyncQueue ya está ejecutándose, saltando');
@@ -1000,7 +1026,7 @@ function App() {
       return;
     }
 
-    console.log('App: Iniciando processSyncQueue - cola:', currentQueue.length, 'items');
+    console.log('App: Sincronizando cola con mapeo de IDs temporales - Items:', currentQueue.length);
     isSyncingRef.current = true;
 
     const storedUserStr = localStorage.getItem('softball_user');
@@ -1023,18 +1049,23 @@ function App() {
     let successCount = 0;
     const remainingQueue = [];
     const reqHeaders = { 'Content-Type': 'application/json', 'x-user-id': userId };
+    const idMap: Record<string, string> = {};
 
     for (const action of currentQueue) {
       try {
-        const actionHeaders = { ...reqHeaders, 'x-team-id': action.teamId || localStorage.getItem('softball_active_team') || '' };
-        const fullUrl = action.url.startsWith('http') ? action.url : `${apiUrl}${action.url}`;
+        // Mapear IDs temporales en url y body de la acción
+        const resolvedUrl = replaceTempIds(action.url, idMap);
+        const resolvedBody = action.body ? replaceTempIds(action.body, idMap) : null;
 
-        console.log('App: Procesando acción:', action.method, fullUrl, 'headers:', actionHeaders, 'body:', action.body);
+        const actionHeaders = { ...reqHeaders, 'x-team-id': action.teamId || localStorage.getItem('softball_active_team') || '' };
+        const fullUrl = resolvedUrl.startsWith('http') ? resolvedUrl : `${apiUrl}${resolvedUrl}`;
+
+        console.log('App: Procesando acción:', action.method, fullUrl, 'headers:', actionHeaders, 'body:', resolvedBody);
 
         const res = await fetchWithFallback(fullUrl, {
           method: action.method,
           headers: actionHeaders,
-          body: action.body ? JSON.stringify(action.body) : undefined,
+          body: resolvedBody ? JSON.stringify(resolvedBody) : undefined,
         });
 
         console.log('App: Respuesta de sync:', res.status, res.ok, res.statusText);
@@ -1042,9 +1073,21 @@ function App() {
         if (res.ok) {
           successCount++;
           console.log('App: Acción sincronizada exitosamente');
+          
+          if (action.method === 'POST' && action.tempId) {
+            try {
+              const resData = await res.clone().json();
+              const realId = resData.id || resData._id;
+              if (realId) {
+                idMap[action.tempId] = String(realId);
+                console.log(`App: Mapeado ID temporal ${action.tempId} a ID real ${realId}`);
+              }
+            } catch (jsonErr) {
+              console.warn('App: No se pudo parsear respuesta de API para mapear ID:', jsonErr);
+            }
+          }
         } else if (res.status >= 400 && res.status < 500) {
           console.error('App: Error permanente (4xx), descartando item:', action, 'Status:', res.status);
-          // No lo añadimos a remainingQueue para que no bloquee para siempre
         } else {
           console.log('App: Acción fallida, reintentando:', res.status, res.statusText);
           remainingQueue.push(action);
@@ -1190,7 +1233,7 @@ function App() {
     if (!isOnline) {
       const tempId = 'temp_' + Date.now() + Math.random().toString(36).substring(2, 5);
       handleOptimisticUpdate(tempId);
-      saveToQueueAndStorage({ url: actionUrl, method, body: method === 'DELETE' ? null : (payload as T), teamId: activeTeamId });
+      saveToQueueAndStorage({ url: actionUrl, method, body: method === 'DELETE' ? null : (payload as T), teamId: activeTeamId, tempId });
       successCallback(true);
       return true;
     }
@@ -1243,7 +1286,7 @@ function App() {
       setIsOnline(false); // Fallback to offline status
       const tempId = 'temp_' + Date.now() + Math.random().toString(36).substring(2, 5);
       handleOptimisticUpdate(tempId);
-      saveToQueueAndStorage({ url: actionUrl, method, body: method === 'DELETE' ? null : (payload as T), teamId: activeTeamId });
+      saveToQueueAndStorage({ url: actionUrl, method, body: method === 'DELETE' ? null : (payload as T), teamId: activeTeamId, tempId });
       successCallback(true);
       return true;
     }
@@ -1385,6 +1428,9 @@ function App() {
 
 
   const handleDeletePayment = async (paymentId: string, password?: string): Promise<void> => {
+    if (password !== config.adminPassword) {
+      throw new Error('Contraseña administrativa incorrecta.');
+    }
     const deleted = await mutateData(PAYMENT_API_URL, 'DELETE', paymentId, setPayments, `softball_payments_${activeTeamId}`, () => { });
     if (!deleted) {
       throw new Error('No se pudo eliminar el pago. Intenta de nuevo.');
@@ -1392,6 +1438,9 @@ function App() {
   };
 
   const handleDeleteBulkPayments = async (paymentIds: string[], password?: string): Promise<void> => {
+    if (password !== config.adminPassword) {
+      throw new Error('Contraseña administrativa incorrecta.');
+    }
     if (!paymentIds || paymentIds.length === 0) return;
 
     for (const paymentId of paymentIds) {
@@ -1474,7 +1523,7 @@ function App() {
   };
 
   const openEditModal = (type: EditModalType, data: Record<string, unknown>) => {
-    if ((type === 'payment' || type === 'expense') && isOlderThan24h(data.registrationDate as string)) {
+    if (type === 'payment' && isOlderThan24h(data.registrationDate as string)) {
       setSecurityChallenge({
         isOpen: true,
         onVerified: () => {
@@ -2402,10 +2451,14 @@ function App() {
                   className="btn-primary"
                   style={{ background: config.primaryColor, width: '100%', marginTop: '0.5rem' }}
                   onClick={() => {
-                    // Bypassing verification
-                    securityChallenge.onVerified();
-                    setSecurityChallenge({ isOpen: false, onVerified: () => { } });
-                    setSecurityPasswordInput('');
+                    if (securityPasswordInput === config.adminPassword) {
+                      securityChallenge.onVerified();
+                      setSecurityChallenge({ isOpen: false, onVerified: () => { } });
+                      setSecurityPasswordInput('');
+                      setErrorStatus(null);
+                    } else {
+                      setErrorStatus('Contraseña incorrecta.');
+                    }
                   }}
                 >
                   Confirmar Identidad
@@ -2553,7 +2606,6 @@ function App() {
             setGameSearch={setGameSearch}
             renderSearchBar={renderSearchBar}
             renderDateFilter={renderDateFilter}
-            formatDate={formatDate}
             formatCurrency={formatCurrency}
             openEditModal={openEditModal}
             confirmDelete={confirmDelete}
@@ -2572,6 +2624,7 @@ function App() {
             expenses={expenses}
             formatCurrency={formatCurrency}
             openEditModal={openEditModal}
+            confirmDelete={confirmDelete}
             showForm={showExpenseForm}
             setShowForm={setShowExpenseForm}
           />
@@ -2584,7 +2637,6 @@ function App() {
             payments={payments}
             expenses={expenses}
             setActiveTab={setActiveTab}
-            formatDate={formatDate}
             formatCurrency={formatCurrency}
           />
         );

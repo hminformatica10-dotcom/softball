@@ -504,7 +504,7 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
 
     try {
       setDeleteBulkModal({ isOpen: true, loading: true });
-      await onDeleteBulkPayments?.(paymentIds);
+      await onDeleteBulkPayments?.(paymentIds, bulkDeletePassword);
       
       setDeleteBulkModal({ isOpen: false, loading: false });
       setBulkDeletePassword('');
@@ -526,7 +526,7 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
 
     try {
       setDeletePaymentModal({ ...deletePaymentModal, loading: true });
-      await onDeletePayment?.(deletePaymentModal.payment.id);
+      await onDeletePayment?.(deletePaymentModal.payment.id, deletePassword);
       setDeletePaymentModal({ isOpen: false, payment: null, loading: false });
       setDeletePassword('');
       setDeleteError('');
@@ -640,7 +640,6 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
           {sortedPlayers.map(player => {
             const playerPayments = conceptPayments.filter(p => p.playerId === player.id);
             const totalPaid = playerPayments.reduce((s, p) => s + p.amount, 0);
-            const remaining = concept.totalAmount - totalPaid;
             const isCompleted = totalPaid >= concept.totalAmount;
             const hasStarted = totalPaid > 0;
             
@@ -804,6 +803,27 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
             <div className="modal-body" style={{ paddingTop: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               {deleteError && <p style={{ color: '#ef4444', fontSize: '0.8rem', textAlign: 'center', fontWeight: 'bold' }}>{deleteError}</p>}
               
+              <div className="form-group" style={{ marginBottom: '0.75rem' }}>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type={showDeletePassword ? "text" : "password"}
+                    className="input-field"
+                    value={deletePassword}
+                    onChange={e => { setDeletePassword(e.target.value); setDeleteError(''); }}
+                    placeholder="Contraseña administrativa"
+                    style={{ textAlign: 'center', fontSize: '1rem', paddingRight: '2.5rem' }}
+                    required
+                  />
+                  <button 
+                    type="button" 
+                    onClick={() => setShowDeletePassword(!showDeletePassword)} 
+                    style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  >
+                    {showDeletePassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+              </div>
+
               <button
                 className="btn-danger"
                 style={{ width: '100%' }}
@@ -843,6 +863,27 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
             <div className="modal-body" style={{ paddingTop: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               {bulkDeleteError && <p style={{ color: '#ef4444', fontSize: '0.8rem', textAlign: 'center', fontWeight: 'bold' }}>{bulkDeleteError}</p>}
               
+              <div className="form-group" style={{ marginBottom: '0.75rem' }}>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type={showBulkDeletePassword ? "text" : "password"}
+                    className="input-field"
+                    value={bulkDeletePassword}
+                    onChange={e => { setBulkDeletePassword(e.target.value); setBulkDeleteError(''); }}
+                    placeholder="Contraseña administrativa"
+                    style={{ textAlign: 'center', fontSize: '1rem', paddingRight: '2.5rem' }}
+                    required
+                  />
+                  <button 
+                    type="button" 
+                    onClick={() => setShowBulkDeletePassword(!showBulkDeletePassword)} 
+                    style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  >
+                    {showBulkDeletePassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+              </div>
+
               <button
                 className="btn-danger"
                 style={{ width: '100%' }}

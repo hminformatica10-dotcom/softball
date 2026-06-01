@@ -54,7 +54,8 @@ export const translations: Record<string, Record<string, string>> = {
     "Tipo de Reporte": "Tipo de Reporte",
     "Generar PDF": "Generar PDF",
     "Notas": "Notas",
-    "Notas del Equipo": "Notas del Equipo"
+    "Notas del Equipo": "Notas del Equipo",
+    "Filtrar por Fecha": "Filtrar por Fecha"
   },
   en: {
     "Configuración y Equipos": "Settings and Teams",
@@ -111,7 +112,8 @@ export const translations: Record<string, Record<string, string>> = {
     "Tipo de Reporte": "Report Type",
     "Generar PDF": "Generate PDF",
     "Notas": "Notes",
-    "Notas del Equipo": "Team Notes"
+    "Notas del Equipo": "Team Notes",
+    "Filtrar por Fecha": "Filter by Date"
   }
 };
 
