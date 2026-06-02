@@ -654,7 +654,7 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
             const getPlayerGamePayments = (playerId: string) =>
               payments.filter(pay => pay.playerId === playerId && attendanceDescriptions.includes(pay.description) && matchesSelectedGame(pay));
 
-            const payers = [...players].sort((a, b) => a.name.localeCompare(b.name)).map(p => {
+            const payers = [...players].filter(p => p.isActive !== false).sort((a, b) => a.name.localeCompare(b.name)).map(p => {
               const playerPayments = getPlayerGamePayments(p.id);
               const paidPayments = playerPayments.filter(pay => paidDescriptions.includes(pay.description));
               const absentPayment = playerPayments.find(pay => pay.description === 'Ausente');

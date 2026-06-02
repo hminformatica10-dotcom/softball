@@ -52,9 +52,13 @@ export const PlayersTab: React.FC<PlayersTabProps> = ({
               </select>
             </div>
             <div className="form-group"><label className="form-label">{t('Foto (Opcional)', config.language)}</label><input type="file" accept="image/*" className="input-field" onChange={(e) => { const file = e.target.files?.[0]; if (file) { const reader = new FileReader(); reader.onload = ev => setFormData({ ...formData, photo: ev.target?.result as string }); reader.readAsDataURL(file); } }} />{formData.photo && <img src={formData.photo} alt="Preview" style={{ marginTop: '0.5rem', height: '60px', borderRadius: '8px', objectFit: 'cover' }} />}</div>
+            <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <input type="checkbox" id="isActive" className="" checked={formData.isActive !== false} onChange={e => setFormData({ ...formData, isActive: e.target.checked })} style={{ width: '20px', height: '20px', cursor: 'pointer' }} />
+              <label htmlFor="isActive" className="form-label" style={{ margin: 0, cursor: 'pointer' }}>Jugador Activo</label>
+            </div>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
               <button type="submit" className="btn-primary" style={{ background: `linear-gradient(135deg, ${config.primaryColor} 0%, #2563eb 100%)`, flex: 1 }}><UserPlus size={20} />{t('Guardar Jugador', config.language)} </button>
-              <button type="button" className="btn-secondary" onClick={() => { setShowForm(false); setFormData({ name: '', jerseyNumber: '', position: '', battingHand: 'Right', photo: '' }); }} style={{ flex: 1 }}>Cancelar</button>
+              <button type="button" className="btn-secondary" onClick={() => { setShowForm(false); setFormData({ name: '', jerseyNumber: '', position: '', battingHand: 'Right', photo: '', isActive: true }); }} style={{ flex: 1 }}>Cancelar</button>
             </div>
           </form>
         </div>
@@ -91,7 +95,10 @@ export const PlayersTab: React.FC<PlayersTabProps> = ({
                     </div>
                   </div>
                 </div>
-                <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'flex-end' }}>
+                <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'flex-end', alignItems: 'center' }}>
+                  <div style={{ fontSize: '0.8rem', padding: '0.4rem 0.8rem', borderRadius: '6px', background: player.isActive !== false ? '#22c55e20' : '#94a3b820', color: player.isActive !== false ? '#22c55e' : '#94a3b8', fontWeight: '600' }}>
+                    {player.isActive !== false ? 'Activo' : 'Inactivo'}
+                  </div>
                   <button className="btn-icon" onClick={() => openEditModal('player', player)} title="Editar"><Edit2 size={18} /></button>
                   <button className="btn-icon" onClick={() => confirmDelete('player', player.id)} title="Eliminar" style={{ color: '#ef4444' }}><Trash2 size={18} /></button>
                 </div>

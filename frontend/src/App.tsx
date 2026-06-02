@@ -277,7 +277,8 @@ function App() {
     jerseyNumber: '',
     position: '',
     battingHand: 'Right',
-    photo: ''
+    photo: '',
+    isActive: true
   });
 
   const [paymentFormData, setPaymentFormData] = useState<PaymentFormData>({
@@ -630,7 +631,7 @@ function App() {
     setPaymentFormData({
       playerId: '', amount: '', description: '', otherDescription: '', abonoDescription: '', notes: '', gameId: '', eventDate: ''
     });
-    setFormData({ name: '', jerseyNumber: '', position: '', battingHand: 'Right', photo: '' });
+    setFormData({ name: '', jerseyNumber: '', position: '', battingHand: 'Right', photo: '', isActive: true });
     setExpenseFormData({ category: '', otherCategory: '', amount: '', description: '', receipt: '', eventDate: getTodayString(), responsible: '' });
     setGameFormData({ opponent: '', eventDate: getTodayString(), time: '', location: '', result: 'Pendiente', feePerPerson: '', fieldPayment: '' });
     setPaymentControlGameId('');
@@ -1369,7 +1370,7 @@ function App() {
     if (!formData.name || !formData.jerseyNumber) return;
 
     mutateData(API_URL, 'POST', formData, setPlayers, `softball_players_${activeTeamId}`, (success: boolean) => {
-      if (success) setFormData({ name: '', jerseyNumber: '', position: 'Infield', battingHand: 'Right', photo: '' });
+      if (success) setFormData({ name: '', jerseyNumber: '', position: 'Infield', battingHand: 'Right', photo: '', isActive: true });
     });
   };
 
@@ -2149,6 +2150,16 @@ function App() {
                         <select className="input-field" value={editModal.data.position} onChange={(e) => setEditModal({ ...editModal, data: { ...editModal.data, position: e.target.value } })}>{positions.map(pos => <option key={pos} value={pos}>{pos}</option>)}</select>
                       </div>
                       <div className="form-group"><label className="form-label">{t('Foto (Opcional)', config.language)}</label><input type="file" accept="image/*" className="input-field" onChange={(e) => { const file = e.target.files?.[0]; if (file) { const reader = new FileReader(); reader.onload = ev => setEditModal({ ...editModal, data: { ...editModal.data, photo: ev.target?.result as string } }); reader.readAsDataURL(file); } }} />{editModal.data.photo && <img src={editModal.data.photo} alt="Preview" style={{ marginTop: '0.5rem', height: '60px', borderRadius: '8px', objectFit: 'cover' }} />}</div>
+                      <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        <input
+                          type="checkbox"
+                          id="editIsActive"
+                          checked={editModal.data.isActive !== false}
+                          onChange={(e) => setEditModal({ ...editModal, data: { ...editModal.data, isActive: e.target.checked } })}
+                          style={{ width: '20px', height: '20px', cursor: 'pointer' }}
+                        />
+                        <label htmlFor="editIsActive" className="form-label" style={{ margin: 0, cursor: 'pointer' }}>Jugador Activo</label>
+                      </div>
                     </>
                   )}
                   {editModal.type === 'payment' && (

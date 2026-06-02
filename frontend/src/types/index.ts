@@ -6,6 +6,7 @@ export interface Player {
   battingHand: string;
   photo?: string;
   createdAt?: string;
+  isActive?: boolean;
 }
 
 export interface Payment {

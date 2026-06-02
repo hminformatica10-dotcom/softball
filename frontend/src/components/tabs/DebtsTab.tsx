@@ -64,7 +64,7 @@ export const DebtsTab: React.FC<DebtsTabProps> = ({
   const unpaidPlayers = useMemo(() => {
     if (!latestGame) return [] as Player[];
     const notesFragment = `Vs ${latestGame.opponent}`;
-    return players.filter(p => {
+    return players.filter(p => p.isActive !== false).filter(p => {
       const payment = payments.find(pay => pay.playerId === p.id && pay.notes && pay.notes.includes(notesFragment));
       const absent = payments.find(pay => pay.playerId === p.id && pay.description === 'Ausente' && pay.notes && pay.notes.includes(notesFragment));
       const paid = payment && payment.description !== 'Deuda Pendiente' && payment.description !== 'Ausente';
