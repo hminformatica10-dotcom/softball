@@ -344,7 +344,7 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
       return !safeGames.some(g => p.gameId === g.id || (p.notes && p.notes.includes(`Vs ${g.opponent}`)));
     });
 
-    const otherExpenses = filteredReportExpenses.filter(e => !e.id.startsWith('game-field-')); // Exclude game field expenses to avoid double listing
+    const otherExpenses = filteredReportExpenses; // Include game field expenses so they appear in Otros Gastos / Egresos Generales
 
     // 1. Render Game Sections
     if (gameGroups.length > 0) {
@@ -378,17 +378,6 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
           ]);
         });
 
-        // Add field payment
-        if (group.expense > 0) {
-          gameRows.push([
-            formatDate(group.game.eventDate || ''),
-            "Gasto Terreno",
-            "Pago de Campo / Terreno",
-            "Gasto",
-            formatCurrency(group.expense)
-          ]);
-        }
-
         autoTable(doc, {
           startY: currentY,
           head: [["Fecha", "Concepto / Jugador", "Detalle", "Tipo", "Monto"]],
@@ -418,23 +407,44 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
       doc.setFontSize(13);
       doc.setFont("helvetica", "bold");
       doc.text("Otros Ingresos (No asociados a juegos)", 15, currentY);
-      
-      autoTable(doc, {
-        startY: currentY + 4,
-        head: [["Fecha", "Jugador", "Concepto", "Monto"]],
-        body: incomesNotGame.map(tx => {
-          let conceptText = tx.description;
-          if (tx.conceptId) {
-            const gc = groupConcepts.find(c => c.id === tx.conceptId || c._id === tx.conceptId);
-            if (gc) conceptText = `[Grup] ${gc.name}`;
-          }
-          return [formatDate(tx.eventDate), tx.playerName, conceptText, formatCurrency(tx.amount)];
-        }),
-        headStyles: { fillColor: [34, 197, 94], textColor: [255, 255, 255], fontStyle: 'bold' },
-        alternateRowStyles: { fillColor: [250, 250, 250] },
-        margin: { left: 15, right: 15 }
-      });
-      currentY = (doc as any).lastAutoTable.finalY + 15;
+      currentY += 8;
+
+      const incomesGroupedByConcept = incomesNotGame.reduce((acc, tx) => {
+        let conceptKey = tx.description;
+        if (tx.conceptId) {
+          const gc = groupConcepts.find(c => c.id === tx.conceptId || c._id === tx.conceptId);
+          if (gc) conceptKey = `[Grup] ${gc.name}`;
+        }
+        if (!acc[conceptKey]) acc[conceptKey] = [];
+        acc[conceptKey].push(tx);
+        return acc;
+      }, {} as Record<string, typeof incomesNotGame>);
+
+      for (const conceptKey of Object.keys(incomesGroupedByConcept)) {
+        const groupPayments = incomesGroupedByConcept[conceptKey];
+        const subtotal = groupPayments.reduce((sum, tx) => sum + tx.amount, 0);
+
+        if (currentY > 240) { doc.addPage(); currentY = 20; }
+        doc.setFontSize(11);
+        doc.setFont("helvetica", "bold");
+        doc.text(conceptKey, 18, currentY);
+        currentY += 6;
+
+        autoTable(doc, {
+          startY: currentY,
+          head: [["Fecha", "Jugador", "Concepto", "Monto"]],
+          body: groupPayments.map(tx => [formatDate(tx.eventDate), tx.playerName, tx.description, formatCurrency(tx.amount)]),
+          headStyles: { fillColor: [34, 197, 94], textColor: [255, 255, 255], fontStyle: 'bold' },
+          alternateRowStyles: { fillColor: [250, 250, 250] },
+          margin: { left: 15, right: 15 }
+        });
+
+        currentY = (doc as any).lastAutoTable.finalY + 4;
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "bold");
+        doc.text(`Subtotal ${conceptKey}: ${formatCurrency(subtotal)}`, 18, currentY);
+        currentY += 12;
+      }
     }
 
     // 3. Render Other/General Expenses Section
@@ -620,7 +630,7 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
         return !safeGames.some(g => p.gameId === g.id || (p.notes && p.notes.includes(`Vs ${g.opponent}`)));
       });
 
-      const otherExpenses = filteredReportExpenses.filter(e => !e.id.startsWith('game-field-')); // Exclude game field expenses to avoid double listing
+      const otherExpenses = filteredReportExpenses; // Include game field expenses so they appear in Otros Gastos / Egresos Generales
 
       const aoaData: any[][] = [];
       
@@ -659,16 +669,6 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
             ]);
           });
           
-          // Add field payment
-          if (group.expense > 0) {
-            aoaData.push([
-              formatDate(group.game.eventDate || ''),
-              "Gasto Terreno",
-              "Pago de Campo / Terreno",
-              "Gasto",
-              group.expense
-            ]);
-          }
           
           // Subtotal row
           aoaData.push([
@@ -686,23 +686,34 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
       const incomesNotGame = otherPayments.filter(t => t.description !== 'Deuda Pendiente');
       if (incomesNotGame.length > 0) {
         aoaData.push(["OTROS INGRESOS (NO ASOCIADOS A JUEGOS)"]);
-        aoaData.push(["Fecha", "Jugador", "Concepto", "Tipo", "Monto"]);
-        
-        incomesNotGame.forEach(tx => {
-          let conceptText = tx.description;
+        const incomesGroupedByConcept = incomesNotGame.reduce((acc, tx) => {
+          let conceptKey = tx.description;
           if (tx.conceptId) {
             const gc = groupConcepts.find(c => c.id === tx.conceptId || c._id === tx.conceptId);
-            if (gc) conceptText = `[Grup] ${gc.name}`;
+            if (gc) conceptKey = `[Grup] ${gc.name}`;
           }
-          aoaData.push([
-            formatDate(tx.eventDate),
-            tx.playerName,
-            conceptText,
-            "Ingreso",
-            tx.amount
-          ]);
-        });
-        aoaData.push([]); // Spacer row
+          if (!acc[conceptKey]) acc[conceptKey] = [];
+          acc[conceptKey].push(tx);
+          return acc;
+        }, {} as Record<string, typeof incomesNotGame>);
+
+        for (const conceptKey of Object.keys(incomesGroupedByConcept)) {
+          const groupPayments = incomesGroupedByConcept[conceptKey];
+          const subtotal = groupPayments.reduce((sum, tx) => sum + tx.amount, 0);
+          aoaData.push([conceptKey]);
+          aoaData.push(["Fecha", "Jugador", "Concepto", "Tipo", "Monto"]);
+          groupPayments.forEach(tx => {
+            aoaData.push([
+              formatDate(tx.eventDate),
+              tx.playerName,
+              tx.description,
+              "Ingreso",
+              tx.amount
+            ]);
+          });
+          aoaData.push(["", "", `Subtotal ${conceptKey}` , "", subtotal]);
+          aoaData.push([]);
+        }
       }
 
       // General Expenses

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { DollarSign, Activity, Trash2, PlusCircle, LayoutGrid, User, Layers, ArrowLeft, CheckCircle2, Edit2, X, Lock, Eye, EyeOff, Search, Calendar, ChevronDown } from 'lucide-react';
+import { DollarSign, Activity, Trash2, PlusCircle, LayoutGrid, User, Layers, ArrowLeft, CheckCircle2, Edit2, X, Search, Calendar, ChevronDown } from 'lucide-react';
 import { t } from '../../translations';
 import { isOlderThan24h } from '../../utils';
 import type { Player, Payment, AppConfig, PaymentConcept, Game } from '../../types';
@@ -64,13 +64,9 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
 
   // Bulk Delete States
   const [deleteBulkModal, setDeleteBulkModal] = useState<{ isOpen: boolean, loading: boolean }>({ isOpen: false, loading: false });
-  const [bulkDeletePassword, setBulkDeletePassword] = useState('');
   const [bulkDeleteError, setBulkDeleteError] = useState('');
-  const [showBulkDeletePassword, setShowBulkDeletePassword] = useState(false);
 
-  const [deletePassword, setDeletePassword] = useState('');
   const [deleteError, setDeleteError] = useState('');
-  const [showDeletePassword, setShowDeletePassword] = useState(false);
   const [deletePaymentModal, setDeletePaymentModal] = useState<{ isOpen: boolean, payment: Payment | null, loading: false }>({ isOpen: false, payment: null, loading: false });
 
   const onCreateConcept = (e: React.FormEvent) => {
@@ -193,7 +189,7 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
     });
 
     const hasActiveFilters = searchResponsible !== '' || selectedGameId !== 'all' || filterDate !== '';
-    const sortedPayments = filteredPaymentsList.sort((a, b) => new Date(b.eventDate || b.date || 0).getTime() - new Date(a.eventDate || a.date || 0).getTime());
+    const sortedPayments = [...filteredPaymentsList].sort((a, b) => new Date(b.registrationDate || b.eventDate || b.date || 0).getTime() - new Date(a.registrationDate || a.eventDate || a.date || 0).getTime());
     
     // If no filters are active, show first 5 (unless showAllRecent is true)
     const recentPayments = (hasActiveFilters || showAllRecent) ? sortedPayments : sortedPayments.slice(0, 5);
@@ -327,7 +323,7 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
                       >
                         Todos los juegos
                       </div>
-                      {(games || []).map(game => {
+                      {([...games] || []).sort((a, b) => new Date(b.eventDate || b.date || 0).getTime() - new Date(a.eventDate || a.date || 0).getTime()).map(game => {
                         const isSelected = selectedGameId === game.id;
                         const gameDateStr = formatDate ? formatDate(game.eventDate || game.date || '') : (game.eventDate || game.date || '');
                         return (
@@ -455,13 +451,13 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
                           <button 
                             className="btn-icon" 
                             onClick={() => openEditModal('payment', payment)}
-                            title={isOlderThan24h(payment.registrationDate) ? "Este pago requiere contraseña para editar" : "Editar pago"}
+                            title="Editar pago"
                             style={{ 
                               opacity: 1,
                               cursor: 'pointer'
                             }}
                           >
-                            {isOlderThan24h(payment.registrationDate) ? <Lock size={16} color="#f59e0b" /> : <Edit2 size={16} />}
+                            <Edit2 size={16} />
                           </button>
                         )}
                         <button 
@@ -504,12 +500,10 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
 
     try {
       setDeleteBulkModal({ isOpen: true, loading: true });
-      await onDeleteBulkPayments?.(paymentIds, bulkDeletePassword);
+      await onDeleteBulkPayments?.(paymentIds);
       
       setDeleteBulkModal({ isOpen: false, loading: false });
-      setBulkDeletePassword('');
       setBulkDeleteError('');
-      setShowBulkDeletePassword(false);
       
       setSearchResponsible('');
       setSelectedGameId('all');
@@ -526,11 +520,9 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
 
     try {
       setDeletePaymentModal({ ...deletePaymentModal, loading: true });
-      await onDeletePayment?.(deletePaymentModal.payment.id, deletePassword);
+      await onDeletePayment?.(deletePaymentModal.payment.id);
       setDeletePaymentModal({ isOpen: false, payment: null, loading: false });
-      setDeletePassword('');
       setDeleteError('');
-      setShowDeletePassword(false);
     } catch (err: any) {
       setDeleteError(err.message || 'Error al eliminar pago');
     } finally {
@@ -671,16 +663,16 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
                           className="btn-secondary" 
                           style={{ 
                             fontSize: '0.75rem', padding: '0.4rem 0.6rem', flex: 1, minWidth: '70px', 
-                            borderColor: isOlderThan24h(playerPayments[0]?.registrationDate) ? 'rgba(255,255,255,0.1)' : `${config.primaryColor}50`, 
-                            color: isOlderThan24h(playerPayments[0]?.registrationDate) ? '#94a3b8' : config.primaryColor 
+                            borderColor: `${config.primaryColor}50`, 
+                            color: config.primaryColor 
                           }}
                           onClick={() => {
                             const pToEdit = playerPayments[0];
                             if (openEditModal && pToEdit) openEditModal('payment', pToEdit);
                           }}
-                          title={isOlderThan24h(playerPayments[0]?.registrationDate) ? "Este pago ya no puede ser editado directamente (Requiere contraseña)" : "Editar pago"}
+                          title="Editar pago"
                         >
-                          {isOlderThan24h(playerPayments[0]?.registrationDate) ? <Lock size={14} style={{ marginRight: '4px' }} /> : <Edit2 size={14} style={{ marginRight: '4px' }} />} Editar
+                          <Edit2 size={14} style={{ marginRight: '4px' }} /> Editar
                         </button>
                       </>
                     )}
@@ -803,26 +795,6 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
             <div className="modal-body" style={{ paddingTop: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               {deleteError && <p style={{ color: '#ef4444', fontSize: '0.8rem', textAlign: 'center', fontWeight: 'bold' }}>{deleteError}</p>}
               
-              <div className="form-group" style={{ marginBottom: '0.75rem' }}>
-                <div style={{ position: 'relative' }}>
-                  <input
-                    type={showDeletePassword ? "text" : "password"}
-                    className="input-field"
-                    value={deletePassword}
-                    onChange={e => { setDeletePassword(e.target.value); setDeleteError(''); }}
-                    placeholder="Contraseña administrativa"
-                    style={{ textAlign: 'center', fontSize: '1rem', paddingRight: '2.5rem' }}
-                    required
-                  />
-                  <button 
-                    type="button" 
-                    onClick={() => setShowDeletePassword(!showDeletePassword)} 
-                    style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                  >
-                    {showDeletePassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                </div>
-              </div>
 
               <button
                 className="btn-danger"
@@ -836,7 +808,7 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
               <button 
                 className="btn-secondary" 
                 style={{ width: '100%', border: 'none', background: 'rgba(255,255,255,0.05)', marginTop: '0.25rem' }} 
-                onClick={() => { setDeletePaymentModal({ isOpen: false, payment: null, loading: false }); setDeletePassword(''); setDeleteError(''); setShowDeletePassword(false); }}
+                onClick={() => { setDeletePaymentModal({ isOpen: false, payment: null, loading: false }); setDeleteError(''); }}
               >
                 Cancelar
               </button>
@@ -863,26 +835,6 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
             <div className="modal-body" style={{ paddingTop: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               {bulkDeleteError && <p style={{ color: '#ef4444', fontSize: '0.8rem', textAlign: 'center', fontWeight: 'bold' }}>{bulkDeleteError}</p>}
               
-              <div className="form-group" style={{ marginBottom: '0.75rem' }}>
-                <div style={{ position: 'relative' }}>
-                  <input
-                    type={showBulkDeletePassword ? "text" : "password"}
-                    className="input-field"
-                    value={bulkDeletePassword}
-                    onChange={e => { setBulkDeletePassword(e.target.value); setBulkDeleteError(''); }}
-                    placeholder="Contraseña administrativa"
-                    style={{ textAlign: 'center', fontSize: '1rem', paddingRight: '2.5rem' }}
-                    required
-                  />
-                  <button 
-                    type="button" 
-                    onClick={() => setShowBulkDeletePassword(!showBulkDeletePassword)} 
-                    style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                  >
-                    {showBulkDeletePassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                </div>
-              </div>
 
               <button
                 className="btn-danger"
@@ -896,7 +848,7 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
               <button 
                 className="btn-secondary" 
                 style={{ width: '100%', border: 'none', background: 'rgba(255,255,255,0.05)', marginTop: '0.25rem' }} 
-                onClick={() => { setDeleteBulkModal({ isOpen: false, loading: false }); setBulkDeletePassword(''); setBulkDeleteError(''); setShowBulkDeletePassword(false); }}
+                onClick={() => { setDeleteBulkModal({ isOpen: false, loading: false }); setBulkDeleteError(''); }}
               >
                 Cancelar
               </button>

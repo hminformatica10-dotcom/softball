@@ -1427,20 +1427,14 @@ function App() {
   };
 
 
-  const handleDeletePayment = async (paymentId: string, password?: string): Promise<void> => {
-    if (password !== config.adminPassword) {
-      throw new Error('Contraseña administrativa incorrecta.');
-    }
+  const handleDeletePayment = async (paymentId: string): Promise<void> => {
     const deleted = await mutateData(PAYMENT_API_URL, 'DELETE', paymentId, setPayments, `softball_payments_${activeTeamId}`, () => { });
     if (!deleted) {
       throw new Error('No se pudo eliminar el pago. Intenta de nuevo.');
     }
   };
 
-  const handleDeleteBulkPayments = async (paymentIds: string[], password?: string): Promise<void> => {
-    if (password !== config.adminPassword) {
-      throw new Error('Contraseña administrativa incorrecta.');
-    }
+  const handleDeleteBulkPayments = async (paymentIds: string[]): Promise<void> => {
     if (!paymentIds || paymentIds.length === 0) return;
 
     for (const paymentId of paymentIds) {
@@ -1523,15 +1517,6 @@ function App() {
   };
 
   const openEditModal = (type: EditModalType, data: Record<string, unknown>) => {
-    if (type === 'payment' && isOlderThan24h(data.registrationDate as string)) {
-      setSecurityChallenge({
-        isOpen: true,
-        onVerified: () => {
-          setEditModal({ isOpen: true, type, data: { ...data, _authorizedEdit: true } });
-        }
-      });
-      return;
-    }
     setEditModal({ isOpen: true, type, data: { ...data } });
   };
 
