@@ -39,6 +39,16 @@ export const NotesTab: React.FC<NotesTabProps> = ({
   // Local notes expansion
   const [showAllNotes, setShowAllNotes] = useState(false);
 
+  // Sort notes from most recent to oldest
+  const sortedNotes = [...notes].sort((a, b) => {
+    const dateA = new Date(a.createdAt || 0).getTime();
+    const dateB = new Date(b.createdAt || 0).getTime();
+    return dateB - dateA;
+  });
+
+  // Limit view to 5 notes unless "Ver más" is clicked
+  const displayedNotes = showAllNotes ? sortedNotes : sortedNotes.slice(0, 5);
+
   const openCreateModal = () => {
     setTitle('');
     setContent('');
@@ -144,16 +154,6 @@ export const NotesTab: React.FC<NotesTabProps> = ({
       content: note.content,
       createdAt: note.createdAt || new Date().toISOString()
     };
-    downloadJsonFile(fileName, payload);
-  };
-
-  const exportAllNotes = () => {
-    const fileName = `Notas_Softball_${new Date().toISOString().slice(0, 10)}.json`;
-    const payload = sortedNotes.map((note) => ({
-      title: note.title || '',
-      content: note.content,
-      createdAt: note.createdAt || new Date().toISOString()
-    }));
     downloadJsonFile(fileName, payload);
   };
 
@@ -279,16 +279,6 @@ export const NotesTab: React.FC<NotesTabProps> = ({
     }
   };
 
-  // Sort notes from most recent to oldest
-  const sortedNotes = [...notes].sort((a, b) => {
-    const dateA = new Date(a.createdAt || 0).getTime();
-    const dateB = new Date(b.createdAt || 0).getTime();
-    return dateB - dateA;
-  });
-
-  // Limit view to 5 notes unless "Ver más" is clicked
-  const displayedNotes = showAllNotes ? sortedNotes : sortedNotes.slice(0, 5);
-
   return (
     <div className="grid-layout">
       <div className="glass-panel" style={{ width: '100%', gridColumn: '1 / -1' }}>
@@ -325,25 +315,6 @@ export const NotesTab: React.FC<NotesTabProps> = ({
               }}
             >
               <FileText size={16} /> Exportar todas PDF
-            </button>
-
-            <button 
-              className="btn-secondary"
-              onClick={exportAllNotes}
-              style={{ 
-                width: 'auto', 
-                padding: '0.55rem 1rem', 
-                background: 'rgba(255,255,255,0.05)',
-                color: '#f8fafc',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.35rem',
-                fontSize: '0.85rem',
-                borderRadius: '10px',
-                border: '1px solid rgba(255,255,255,0.12)'
-              }}
-            >
-              <Download size={16} /> Exportar todas JSON
             </button>
 
             <button 
