@@ -17,14 +17,14 @@ registerSW({
 window.addEventListener('error', (event: ErrorEvent) => {
   try {
     console.error('[APP-ERROR] Uncaught error:', event.message, event.error?.stack || event.filename + ':' + event.lineno);
-  } catch (e) {
+  } catch {
     // ignore
   }
 });
 window.addEventListener('unhandledrejection', (event: PromiseRejectionEvent) => {
   try {
     console.error('[APP-ERROR] Unhandled rejection:', event.reason);
-  } catch (e) {
+  } catch {
     // ignore
   }
 });

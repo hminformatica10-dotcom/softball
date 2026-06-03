@@ -1,0 +1,39 @@
+﻿
+06-03 14:27:22.559   654   654 W Layer   : Hide layer Input Consumer 
+recents_animation_input_consumer#1738 because zOrderRelativeOf = 
+ActivityRecord{e0d2149 u0 com.zeratyx.softball/.MainActivity#5343 is hide.
+06-03 14:27:22.559   654   654 W Layer   : Hide layer Input Consumer 
+recents_animation_input_consumer#1738 because zOrderRelativeOf = 
+ActivityRecord{e0d2149 u0 com.zeratyx.softball/.MainActivity#5343 is hide.
+06-03 14:27:22.575   654   654 W Layer   : Hide layer Input Consumer 
+recents_animation_input_consumer#1738 because zOrderRelativeOf = 
+ActivityRecord{e0d2149 u0 com.zeratyx.softball/.MainActivity#5343 is hide.
+06-03 14:27:22.575   654   654 W Layer   : Hide layer Input Consumer 
+recents_animation_input_consumer#1738 because zOrderRelativeOf = 
+ActivityRecord{e0d2149 u0 com.zeratyx.softball/.MainActivity#5343 is hide.
+06-03 14:27:22.592   654   654 W Layer   : Hide layer Input Consumer 
+recents_animation_input_consumer#1738 because zOrderRelativeOf = 
+ActivityRecord{e0d2149 u0 com.zeratyx.softball/.MainActivity#5343 is hide.
+06-03 14:27:22.592   654   654 W Layer   : Hide layer Input Consumer 
+recents_animation_input_consumer#1738 because zOrderRelativeOf = 
+ActivityRecord{e0d2149 u0 com.zeratyx.softball/.MainActivity#5343 is hide.
+06-03 14:27:22.822   654   654 W Layer   : Hide layer Input Consumer 
+recents_animation_input_consumer#1738 because zOrderRelativeOf = 
+ActivityRecord{e0d2149 u0 com.zeratyx.softball/.MainActivity#5343 is hide.
+06-03 14:27:22.822   654   654 W Layer   : Hide layer Input Consumer 
+recents_animation_input_consumer#1738 because zOrderRelativeOf = 
+ActivityRecord{e0d2149 u0 com.zeratyx.softball/.MainActivity#5343 is hide.
+06-03 14:27:22.901   654   654 W Layer   : Hide layer Input Consumer 
+recents_animation_input_consumer#1738 because zOrderRelativeOf = 
+ActivityRecord{e0d2149 u0 com.zeratyx.softball/.MainActivity#5343 is hide.
+06-03 14:27:22.901   654   654 W Layer   : Hide layer Input Consumer 
+recents_animation_input_consumer#1738 because zOrderRelativeOf = 
+ActivityRecord{e0d2149 u0 com.zeratyx.softball/.MainActivity#5343 is hide.
+06-03 14:27:22.950   654   654 W Layer   : Hide layer Input Consumer 
+recents_animation_input_consumer#1738 because zOrderRelativeOf = 
+ActivityRecord{e0d2149 u0 com.zeratyx.softball/.MainActivity#5343 is hide.
+06-03 14:27:22.950   654   654 W Layer   : Hide layer Input Consumer 
+recents_animation_input_consumer#1738 because zOrderRelativeOf = 
+ActivityRecord{e0d2149 u0 com.zeratyx.softball/.MainActivity#5343 is hide.
+
+

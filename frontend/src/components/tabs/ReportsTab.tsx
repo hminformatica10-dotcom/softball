@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, Download, BarChart2, TrendingUp, TrendingDown, ClipboardCheck, Sliders, Eye, AlertCircle, CheckCircle, Loader, Share2, FileText, FileSpreadsheet } from 'lucide-react';
+import { Search, BarChart2, TrendingUp, TrendingDown, ClipboardCheck, Sliders, Eye, AlertCircle, CheckCircle, Loader, Share2, FileText, FileSpreadsheet } from 'lucide-react';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -21,8 +21,8 @@ interface ExportPlugin extends Plugin {
 // Intentar registrar, pero no fallar si no existe
 let ExportPluginImpl: ExportPlugin | null = null;
 try {
-  ExportPluginImpl = registerPlugin<ExportPlugin>('ExportPlugin') as any;
-} catch (e) {
+  ExportPluginImpl = registerPlugin<ExportPlugin>('ExportPlugin') as unknown as ExportPlugin;
+} catch {
   console.warn('[INIT] ExportPlugin no disponible, usaremos Filesystem');
 }
 

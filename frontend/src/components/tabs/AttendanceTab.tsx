@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { ClipboardCheck, Trash2, Calendar, ChevronDown, ChevronUp, Download, Loader, CheckCircle, AlertCircle, Share2, FileText, FileSpreadsheet } from 'lucide-react';
 import { t } from '../../translations';
 import type { Game, Player, Payment, AppConfig } from '../../types';
@@ -17,8 +17,8 @@ interface ExportPlugin extends Plugin {
 
 let ExportPluginImpl: ExportPlugin | null = null;
 try {
-  ExportPluginImpl = registerPlugin<ExportPlugin>('ExportPlugin') as any;
-} catch (e) {
+  ExportPluginImpl = registerPlugin<ExportPlugin>('ExportPlugin') as unknown as ExportPlugin;
+} catch {
   console.warn('[INIT] ExportPlugin no disponible en AttendanceTab, usaremos Filesystem');
 }
 
@@ -438,16 +438,7 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
   };
 
 
-  useEffect(() => {
-    if (!paymentControlGameId) return;
-    const selectedGame = games.find(g => g.id === paymentControlGameId);
-    if (selectedGame) {
-      updateGameTotals(selectedGame);
-    }
-    // Recalculate whenever payments or games change
-  }, [paymentControlGameId, payments, games]);
-
-  const updateGameTotals = (game: Game) => {
+  const updateGameTotals = useCallback((game: Game) => {
     if (!game) return;
     // Recalcula total desde pagos actuales
     const total = payments.reduce((sum, p) => {
@@ -468,7 +459,16 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
     const updated = { ...game, collectedTotal: total, surplus } as Game & { id: string };
     // Persistir en backend la información del juego
     mutateData(GAME_API_URL, 'PUT', updated, setGames, `softball_games_${activeTeamId}`, () => {});
-  };
+  }, [payments, mutateData, GAME_API_URL, setGames, activeTeamId]);
+
+  useEffect(() => {
+    if (!paymentControlGameId) return;
+    const selectedGame = games.find(g => g.id === paymentControlGameId);
+    if (selectedGame) {
+      updateGameTotals(selectedGame);
+    }
+    // Recalculate whenever payments or games change
+  }, [paymentControlGameId, payments, games, updateGameTotals]);
 
   const parseGameFee = (value: string | number | undefined): number => {
     if (typeof value === 'number') return value;

@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { DollarSign, Activity, Trash2, PlusCircle, LayoutGrid, User, Layers, ArrowLeft, CheckCircle2, Edit2, X, Search, Calendar, ChevronDown } from 'lucide-react';
 import { t } from '../../translations';
-import { isOlderThan24h } from '../../utils';
 import type { Player, Payment, AppConfig, PaymentConcept, Game } from '../../types';
 
 type PaymentFormData = {
@@ -346,7 +345,7 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
                       >
                         Todos los juegos
                       </div>
-                      {([...games] || []).sort((a, b) => new Date(b.eventDate || b.date || 0).getTime() - new Date(a.eventDate || a.date || 0).getTime()).map(game => {
+                      {([...games]).sort((a, b) => new Date(b.eventDate || b.date || 0).getTime() - new Date(a.eventDate || a.date || 0).getTime()).map(game => {
                         const isSelected = selectedGameId === game.id;
                         const gameDateStr = formatDate ? formatDate(game.eventDate || game.date || '') : (game.eventDate || game.date || '');
                         return (

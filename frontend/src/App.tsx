@@ -7,7 +7,6 @@ import { Capacitor } from '@capacitor/core';
 import { jwtDecode } from 'jwt-decode';
 import { Users, User, TrendingUp, Sliders, Trash2, Activity, Home, DollarSign, CreditCard, BarChart2, PlusCircle, Edit2, AlertCircle, Search, Settings, Calendar, ClipboardCheck, Menu, X, Wifi, WifiOff, Lock, ShieldCheck, Eye, EyeOff, RefreshCw, FileText } from 'lucide-react';
 import type { Player, Payment, Expense, Game, AppConfig, PaymentConcept } from './types';
-import { isOlderThan24h } from './utils';
 import { DashboardTab } from './components/tabs/DashboardTab';
 
 type Team = AppConfig & {
@@ -143,7 +142,7 @@ const testServerUrl = async (baseUrl: string) => {
     const response = await fetch(healthUrl, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
-      signal: AbortSignal.timeout(5000)
+      signal: AbortSignal.timeout(2000)
     });
     
     const endTime = performance.now();
@@ -205,6 +204,15 @@ function App() {
     console.log(`[INFO] URLs disponibles:`);
     console.log(`  - AWS URL: ${preferredApiUrl || 'NO CONFIGURADA'}`);
     console.log(`  - Fallback URLs: [${fallbackApiUrls.join(', ')}]\n`);
+    
+    // 0. Probar primero la URL activa actual si ya está establecida
+    if (apiUrl) {
+      console.log(`[INTENTO 0] Probando URL activa actual: ${apiUrl}`);
+      if (await testServerUrl(apiUrl)) {
+        console.log(`✅ [EXITO] La URL activa actual sigue funcionando: ${apiUrl}\n`);
+        return true;
+      }
+    }
     
     if (preferredApiUrl) {
       console.log(`[INTENTO 1] Probando URL de AWS: ${preferredApiUrl}`);
@@ -992,7 +1000,6 @@ function App() {
     }
   };
 
-  /* eslint-disable @typescript-eslint/no-explicit-any */
   const replaceTempIds = (value: any, idMap: Record<string, string>): any => {
     if (typeof value === 'string') {
       let result = value;
@@ -1015,7 +1022,6 @@ function App() {
     }
     return value;
   };
-  /* eslint-enable @typescript-eslint/no-explicit-any */
 
   const processSyncQueue = async () => {
     if (isSyncingRef.current) {
