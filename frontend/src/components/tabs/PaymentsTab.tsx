@@ -181,7 +181,7 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
   );
 
   const renderIndividualView = () => {
-    const individualPayments = filteredPayments.filter(p => !p.conceptId);
+    const individualPayments = filteredPayments.filter(p => !p.conceptId && p.description !== 'Ausente' && p.description !== 'Deuda Pendiente');
     
     // Filtering logic
     const filteredPaymentsList = individualPayments.filter(p => {
