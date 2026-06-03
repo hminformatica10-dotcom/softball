@@ -4,6 +4,19 @@ import { t } from '../../translations';
 import { isOlderThan24h } from '../../utils';
 import type { Player, Payment, AppConfig, PaymentConcept, Game } from '../../types';
 
+type PaymentFormData = {
+  playerId: string;
+  amount: string;
+  description: string;
+  otherDescription: string;
+  abonoDescription: string;
+  notes: string;
+  responsible: string;
+  gameId: string;
+  eventDate: string;
+  conceptId?: string;
+};
+
 interface PaymentsTabProps {
   config: AppConfig;
   paymentFormData: any;
@@ -17,6 +30,7 @@ interface PaymentsTabProps {
   groupConcepts: PaymentConcept[];
   loadingConcepts: boolean;
   handleConceptSubmit: (name: string, amount: number) => void;
+  handlePaymentPayloadSubmit: (payload: Partial<PaymentFormData>) => Promise<boolean>;
   deleteConcept: (id: string) => void;
   openEditModal?: (type: string, data: any) => void;
   onDeletePayment?: (paymentId: string, password?: string) => Promise<void>;
@@ -54,6 +68,15 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
   const [selectedConcept, setSelectedConcept] = useState<PaymentConcept | null>(null);
   const [showNewConceptModal, setShowNewConceptModal] = useState(false);
   const [newConceptData, setNewConceptData] = useState({ name: '', amount: '' });
+  const [groupPaymentModal, setGroupPaymentModal] = useState({
+    isOpen: false,
+    player: null as Player | null,
+    type: '' as 'Pago' | 'Abono' | '',
+    amount: '',
+    notes: '',
+    responsible: '',
+    eventDate: new Date().toISOString().split('T')[0]
+  });
   
   // Filter States
   const [searchResponsible, setSearchResponsible] = useState('');
@@ -657,26 +680,55 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
                   </div>
 
                   <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                    {hasStarted && (
+                    <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                    {!isCompleted && (
                       <>
+                        <button 
+                          className="btn-primary" 
+                          style={{ 
+                            fontSize: '0.75rem', padding: '0.4rem 0.6rem', minWidth: '70px', 
+                            background: '#22c55e', 
+                            color: '#0f172a',
+                            border: 'none'
+                          }}
+                          onClick={() => openGroupPaymentModal(player, 'Pago')}
+                          title="Registrar pago"
+                        >
+                          Pagar
+                        </button>
                         <button 
                           className="btn-secondary" 
                           style={{ 
-                            fontSize: '0.75rem', padding: '0.4rem 0.6rem', flex: 1, minWidth: '70px', 
-                            borderColor: `${config.primaryColor}50`, 
-                            color: config.primaryColor 
+                            fontSize: '0.75rem', padding: '0.4rem 0.6rem', minWidth: '70px', 
+                            borderColor: '#f59e0b', 
+                            color: '#f59e0b' 
                           }}
-                          onClick={() => {
-                            const pToEdit = playerPayments[0];
-                            if (openEditModal && pToEdit) openEditModal('payment', pToEdit);
-                          }}
-                          title="Editar pago"
+                          onClick={() => openGroupPaymentModal(player, 'Abono')}
+                          title="Registrar abono"
                         >
-                          <Edit2 size={14} style={{ marginRight: '4px' }} /> Editar
+                          Abono
                         </button>
                       </>
                     )}
+                    {hasStarted && (
+                      <button 
+                        className="btn-secondary" 
+                        style={{ 
+                          fontSize: '0.75rem', padding: '0.4rem 0.6rem', minWidth: '70px', 
+                          borderColor: `${config.primaryColor}50`, 
+                          color: config.primaryColor 
+                        }}
+                        onClick={() => {
+                          const pToEdit = playerPayments[0];
+                          if (openEditModal && pToEdit) openEditModal('payment', pToEdit);
+                        }}
+                        title="Editar pago"
+                      >
+                        <Edit2 size={14} style={{ marginRight: '4px' }} /> Editar
+                      </button>
+                    )}
                     {isCompleted && <CheckCircle2 size={20} color="#22c55e" />}
+                  </div>
                   </div>
                 </div>
                 
@@ -696,6 +748,38 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
         </div>
       </div>
     );
+  };
+
+  const openGroupPaymentModal = (player: Player, type: 'Pago' | 'Abono') => {
+    setGroupPaymentModal({
+      isOpen: true,
+      player,
+      type,
+      amount: '',
+      notes: '',
+      responsible: '',
+      eventDate: new Date().toISOString().split('T')[0]
+    });
+  };
+
+  const handleGroupPaymentSubmit = async (e: React.FormEvent, concept: PaymentConcept) => {
+    e.preventDefault();
+    if (!groupPaymentModal.player || !groupPaymentModal.amount) return;
+
+    const payload: Partial<PaymentFormData> = {
+      playerId: groupPaymentModal.player.id,
+      amount: groupPaymentModal.amount,
+      description: groupPaymentModal.type === 'Pago' ? `Pago Total: ${concept.name}` : `Abono: ${concept.name}`,
+      notes: groupPaymentModal.notes || `${groupPaymentModal.type} de ${concept.name}`,
+      responsible: groupPaymentModal.responsible,
+      eventDate: groupPaymentModal.eventDate,
+      conceptId: concept.id
+    };
+
+    const success = await handlePaymentPayloadSubmit(payload);
+    if (success) {
+      setGroupPaymentModal({ isOpen: false, player: null, type: '', amount: '', notes: '', responsible: '', eventDate: new Date().toISOString().split('T')[0] });
+    }
   };
 
   return (
@@ -767,6 +851,72 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
                   <div className="modal-footer" style={{ marginTop: '1rem' }}>
                     <button type="button" className="btn-secondary" onClick={() => setShowNewConceptModal(false)}>Cancelar</button>
                     <button type="submit" className="btn-primary" style={{ background: config.primaryColor }}>Crear Concepto</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+          {groupPaymentModal.isOpen && selectedConcept && (
+            <div className="modal-overlay" style={{ zIndex: 1200 }}>
+              <div className="modal-content" style={{ maxWidth: '420px' }}>
+                <div className="modal-header">
+                  <h3 className="modal-title">{groupPaymentModal.type === 'Pago' ? 'Registrar Pago' : 'Registrar Abono'}</h3>
+                  <button className="btn-icon" onClick={() => setGroupPaymentModal({ isOpen: false, player: null, type: '', amount: '', notes: '', responsible: '', eventDate: new Date().toISOString().split('T')[0] })}><X size={24} /></button>
+                </div>
+                <form onSubmit={(e) => handleGroupPaymentSubmit(e, selectedConcept)} className="modal-body">
+                  <div className="form-group">
+                    <label className="form-label">Jugador</label>
+                    <input type="text" className="input-field" value={groupPaymentModal.player?.name || ''} readOnly />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Concepto</label>
+                    <input type="text" className="input-field" value={selectedConcept.name} readOnly />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Monto ($)</label>
+                    <input
+                      type="number"
+                      className="input-field"
+                      placeholder="0.00"
+                      value={groupPaymentModal.amount}
+                      onChange={e => setGroupPaymentModal(prev => ({ ...prev, amount: e.target.value }))}
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Fecha</label>
+                    <input
+                      type="date"
+                      className="input-field"
+                      value={groupPaymentModal.eventDate}
+                      onChange={e => setGroupPaymentModal(prev => ({ ...prev, eventDate: e.target.value }))}
+                      required
+                      style={{ colorScheme: 'dark' }}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Responsable</label>
+                    <input
+                      type="text"
+                      className="input-field"
+                      placeholder="Ej. Juan Perez"
+                      value={groupPaymentModal.responsible}
+                      onChange={e => setGroupPaymentModal(prev => ({ ...prev, responsible: e.target.value }))}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Notas</label>
+                    <input
+                      type="text"
+                      className="input-field"
+                      placeholder="Detalle opcional"
+                      value={groupPaymentModal.notes}
+                      onChange={e => setGroupPaymentModal(prev => ({ ...prev, notes: e.target.value }))}
+                    />
+                  </div>
+                  <div className="modal-footer" style={{ marginTop: '1rem' }}>
+                    <button type="button" className="btn-secondary" onClick={() => setGroupPaymentModal({ isOpen: false, player: null, type: '', amount: '', notes: '', responsible: '', eventDate: new Date().toISOString().split('T')[0] })}>Cancelar</button>
+                    <button type="submit" className="btn-primary" style={{ background: config.primaryColor }}>{groupPaymentModal.type === 'Pago' ? 'Registrar Pago' : 'Registrar Abono'}</button>
                   </div>
                 </form>
               </div>

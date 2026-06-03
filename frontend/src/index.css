@@ -116,6 +116,36 @@ body {
   min-height: 44px;
 }
 
+.position-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.position-button {
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  background: var(--btn-secondary-bg);
+  color: var(--text-color);
+  padding: 0.65rem 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.95rem;
+  font-weight: 600;
+  min-width: 110px;
+  white-space: nowrap;
+}
+
+.position-button:hover {
+  background: rgba(56, 189, 248, 0.08);
+}
+
+.position-button.active {
+  background: rgba(59, 130, 246, 0.2);
+  border-color: rgba(59, 130, 246, 0.5);
+  color: #eff6ff;
+}
+
 .form-label {
   display: block;
   font-size: 0.875rem;

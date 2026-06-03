@@ -130,6 +130,10 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
     .reduce((acc, curr) => acc + curr.amount, 0);
 
   const filteredExpensesTotal = filteredReportExpenses.reduce((acc, curr) => acc + curr.amount, 0);
+  const fieldPaymentExpenses = filteredReportExpenses.filter(e => e.category === 'Pago de Terreno');
+  const otherReportExpenses = filteredReportExpenses.filter(e => e.category !== 'Pago de Terreno');
+  const fieldPaymentTotal = fieldPaymentExpenses.reduce((acc, curr) => acc + curr.amount, 0);
+  const otherExpensesTotal = otherReportExpenses.reduce((acc, curr) => acc + curr.amount, 0);
   const liquidBalance = liquidIncome - filteredExpensesTotal;
 
   // DATA GROUPING
@@ -344,7 +348,8 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
       return !safeGames.some(g => p.gameId === g.id || (p.notes && p.notes.includes(`Vs ${g.opponent}`)));
     });
 
-    const otherExpenses = filteredReportExpenses; // Include game field expenses so they appear in Otros Gastos / Egresos Generales
+    const fieldPaymentExpenses = filteredReportExpenses.filter(e => e.category === 'Pago de Terreno');
+    const otherExpenses = filteredReportExpenses.filter(e => e.category !== 'Pago de Terreno');
 
     // 1. Render Game Sections
     if (gameGroups.length > 0) {
@@ -447,15 +452,35 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
       }
     }
 
-    // 3. Render Other/General Expenses Section
+    // 3. Render Pago de Terreno expenses
+    if (fieldPaymentExpenses.length > 0) {
+      if (currentY > 240) { doc.addPage(); currentY = 20; }
+
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(13);
+      doc.setFont("helvetica", "bold");
+      doc.text("Pago de Terreno", 15, currentY);
+
+      autoTable(doc, {
+        startY: currentY + 4,
+        head: [["Fecha", "Categoría", "Descripción", "Monto"]],
+        body: fieldPaymentExpenses.map(tx => [formatDate(tx.eventDate), tx.category, tx.description, formatCurrency(tx.amount)]),
+        headStyles: { fillColor: [249, 115, 22], textColor: [255, 255, 255], fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: [250, 250, 250] },
+        margin: { left: 15, right: 15 }
+      });
+      currentY = (doc as any).lastAutoTable.finalY + 15;
+    }
+
+    // 4. Render Other/General Expenses Section
     if (otherExpenses.length > 0) {
       if (currentY > 240) { doc.addPage(); currentY = 20; }
-      
+
       doc.setTextColor(0, 0, 0);
       doc.setFontSize(13);
       doc.setFont("helvetica", "bold");
       doc.text("Otros Gastos / Egresos Generales", 15, currentY);
-      
+
       autoTable(doc, {
         startY: currentY + 4,
         head: [["Fecha", "Categoría", "Descripción", "Monto"]],
@@ -630,11 +655,10 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
         return !safeGames.some(g => p.gameId === g.id || (p.notes && p.notes.includes(`Vs ${g.opponent}`)));
       });
 
-      const otherExpenses = filteredReportExpenses; // Include game field expenses so they appear in Otros Gastos / Egresos Generales
+      const fieldPaymentExpenses = filteredReportExpenses.filter(e => e.category === 'Pago de Terreno');
+      const otherExpenses = filteredReportExpenses.filter(e => e.category !== 'Pago de Terreno');
 
       const aoaData: any[][] = [];
-      
-      // Header Info
       aoaData.push([config.teamName || 'Reporte Softball']);
       aoaData.push(["REPORTE FINANCIERO OFICIAL (POR JUEGOS)"]);
       const reportDateRange = reportSpecificDate ? formatDate(reportSpecificDate) : 
@@ -714,6 +738,23 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
           aoaData.push(["", "", `Subtotal ${conceptKey}` , "", subtotal]);
           aoaData.push([]);
         }
+      }
+
+      // Pago de Terreno Expenses
+      if (fieldPaymentExpenses.length > 0) {
+        aoaData.push(["PAGO DE TERRENO"]);
+        aoaData.push(["Fecha", "Categoría", "Descripción", "Tipo", "Monto"]);
+        
+        fieldPaymentExpenses.forEach(tx => {
+          aoaData.push([
+            formatDate(tx.eventDate),
+            tx.category,
+            tx.description,
+            "Gasto",
+            tx.amount
+          ]);
+        });
+        aoaData.push([]); // Spacer row
       }
 
       // General Expenses
@@ -1069,6 +1110,16 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
               <div style={{ color: '#94a3b8', fontSize: '0.75rem', marginBottom: '0.3rem', fontWeight: 'bold', textTransform: 'uppercase' }}>GASTOS</div>
               <div style={{ fontSize: '1.4rem', fontWeight: 'bold', color: '#ef4444' }}>{formatCurrency(filteredExpensesTotal)}</div>
            </div>
+
+           <div className="selection-card" style={{ padding: '1rem', background: 'rgba(249, 115, 22, 0.05)', border: '1px solid rgba(249, 115, 22, 0.2)', borderRadius: '16px' }}>
+              <div style={{ color: '#94a3b8', fontSize: '0.75rem', marginBottom: '0.3rem', fontWeight: 'bold', textTransform: 'uppercase' }}>PAGO DE TERRENO</div>
+              <div style={{ fontSize: '1.4rem', fontWeight: 'bold', color: '#f59e0b' }}>{formatCurrency(fieldPaymentTotal)}</div>
+           </div>
+
+           <div className="selection-card" style={{ padding: '1rem', background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '16px' }}>
+              <div style={{ color: '#94a3b8', fontSize: '0.75rem', marginBottom: '0.3rem', fontWeight: 'bold', textTransform: 'uppercase' }}>OTROS GASTOS</div>
+              <div style={{ fontSize: '1.4rem', fontWeight: 'bold', color: '#ef4444' }}>{formatCurrency(otherExpensesTotal)}</div>
+           </div>
         </div>
       </div>
 
@@ -1133,62 +1184,152 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
             {displayedTransactions.length === 0 ? (
               <div className="empty-state"><h3>No hay registros</h3></div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            {displayedTransactions.map((tx: any) => {
-               const isDebt = tx.description === 'Deuda Pendiente';
-               const isIncome = tx.type === 'ingreso';
-               
-               let conceptLabel = tx.title;
-               if (tx.conceptId) {
-                 const gc = groupConcepts.find(c => c.id === tx.conceptId || c._id === tx.conceptId);
-                 if (gc) conceptLabel = gc.name;
-               }
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                {/* Ingresos */}
+                {displayedTransactions.filter((tx: any) => tx.type === 'ingreso').length > 0 && (
+                  <div>
+                    <h3 style={{ fontSize: '1rem', fontWeight: '600', color: '#22c55e', marginBottom: '0.75rem' }}>Ingresos</h3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                      {displayedTransactions.filter((tx: any) => tx.type === 'ingreso').map((tx: any) => {
+                        const isDebt = tx.description === 'Deuda Pendiente';
+                        let conceptLabel = tx.title;
+                        if (tx.conceptId) {
+                          const gc = groupConcepts.find(c => c.id === tx.conceptId || c._id === tx.conceptId);
+                          if (gc) conceptLabel = gc.name;
+                        }
 
-               return (
-                <div 
-                  key={tx.id} 
-                  className="player-card" 
-                  style={{ 
-                    borderLeft: `4px solid ${isIncome ? (isDebt ? '#f59e0b' : '#22c55e') : '#ef4444'}`,
-                    padding: '1rem'
-                  }}
-                >
-                  <div className="flex-responsive" style={{ gap: '0.5rem' }}>
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <div style={{ fontWeight: '700', fontSize: '1rem', color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>{conceptLabel}</span>
-                        <span style={{ fontSize: '0.65rem', padding: '0.15rem 0.4rem', borderRadius: '4px', background: isIncome ? (isDebt ? '#f59e0b20' : '#22c55e20') : '#ef444420', color: isIncome ? (isDebt ? '#f59e0b' : '#22c55e') : '#ef4444', fontWeight: 'bold' }}>
-                           {isIncome ? (isDebt ? 'DEUDA' : 'INGRESO') : 'GASTO'}
-                        </span>
-                      </div>
-                      <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '0.3rem' }}>
-                        <span style={{fontWeight: 'bold', color: '#e2e8f0'}}>{isIncome && !isDebt ? tx.title : tx.description}</span> • {formatDate(tx.eventDate)}
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0.5rem' }}>
-                      <div style={{ fontWeight: '800', fontSize: '1.2rem', color: isIncome ? (isDebt ? '#f59e0b' : '#22c55e') : '#ef4444' }}>
-                        {isIncome ? '+' : '-'}{formatCurrency(tx.amount)}
-                      </div>
-                      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                        {tx.receipt && (
-                          <button 
-                            onClick={() => setViewingReceipt?.(tx.receipt)}
-                            title={t('Ver Recibo', config.language)}
+                        return (
+                          <div 
+                            key={tx.id} 
+                            className="player-card" 
                             style={{ 
-                              display: 'flex', alignItems: 'center', gap: '4px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#94a3b8', padding: '0.3rem 0.6rem', borderRadius: '8px', fontSize: '0.7rem', cursor: 'pointer' 
+                              borderLeft: `4px solid ${isDebt ? '#f59e0b' : '#22c55e'}`,
+                              padding: '1rem'
                             }}
                           >
-                            <Eye size={14} />
-                          </button>
-                        )}
-
-                      </div>
+                            <div className="flex-responsive" style={{ gap: '0.5rem' }}>
+                              <div style={{ minWidth: 0, flex: 1 }}>
+                                <div style={{ fontWeight: '700', fontSize: '1rem', color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>{conceptLabel}</span>
+                                  <span style={{ fontSize: '0.65rem', padding: '0.15rem 0.4rem', borderRadius: '4px', background: isDebt ? '#f59e0b20' : '#22c55e20', color: isDebt ? '#f59e0b' : '#22c55e', fontWeight: 'bold' }}>
+                                    {isDebt ? 'DEUDA' : 'INGRESO'}
+                                  </span>
+                                </div>
+                                <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '0.3rem' }}>
+                                  <span style={{fontWeight: 'bold', color: '#e2e8f0'}}>{!isDebt ? tx.title : tx.description}</span> • {formatDate(tx.eventDate)}
+                                </div>
+                              </div>
+                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0.5rem' }}>
+                                <div style={{ fontWeight: '800', fontSize: '1.2rem', color: isDebt ? '#f59e0b' : '#22c55e' }}>
+                                  +{formatCurrency(tx.amount)}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
-                </div>
-               );
-            })}
-          </div>
+                )}
+
+                {/* Pago de Terreno */}
+                {displayedTransactions.filter((tx: any) => tx.type === 'gasto' && tx.title === 'Pago de Terreno').length > 0 && (
+                  <div>
+                    <h3 style={{ fontSize: '1rem', fontWeight: '600', color: '#f59e0b', marginBottom: '0.75rem' }}>Pago de Terreno</h3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                      {displayedTransactions.filter((tx: any) => tx.type === 'gasto' && tx.title === 'Pago de Terreno').map((tx: any) => (
+                        <div 
+                          key={tx.id} 
+                          className="player-card" 
+                          style={{ 
+                            borderLeft: `4px solid #f59e0b`,
+                            padding: '1rem'
+                          }}
+                        >
+                          <div className="flex-responsive" style={{ gap: '0.5rem' }}>
+                            <div style={{ minWidth: 0, flex: 1 }}>
+                              <div style={{ fontWeight: '700', fontSize: '1rem', color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>Pago de Terreno</span>
+                                <span style={{ fontSize: '0.65rem', padding: '0.15rem 0.4rem', borderRadius: '4px', background: '#f59e0b20', color: '#f59e0b', fontWeight: 'bold' }}>
+                                  TERRENO
+                                </span>
+                              </div>
+                              <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '0.3rem' }}>
+                                <span style={{fontWeight: 'bold', color: '#e2e8f0'}}>{tx.description}</span> • {formatDate(tx.eventDate)}
+                              </div>
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0.5rem' }}>
+                              <div style={{ fontWeight: '800', fontSize: '1.2rem', color: '#f59e0b' }}>
+                                -{formatCurrency(tx.amount)}
+                              </div>
+                              {tx.receipt && (
+                                <button 
+                                  onClick={() => setViewingReceipt?.(tx.receipt)}
+                                  title={t('Ver Recibo', config.language)}
+                                  style={{ 
+                                    display: 'flex', alignItems: 'center', gap: '4px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#94a3b8', padding: '0.3rem 0.6rem', borderRadius: '8px', fontSize: '0.7rem', cursor: 'pointer' 
+                                  }}
+                                >
+                                  <Eye size={14} />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Otros Gastos */}
+                {displayedTransactions.filter((tx: any) => tx.type === 'gasto' && tx.title !== 'Pago de Terreno').length > 0 && (
+                  <div>
+                    <h3 style={{ fontSize: '1rem', fontWeight: '600', color: '#ef4444', marginBottom: '0.75rem' }}>Otros Gastos</h3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                      {displayedTransactions.filter((tx: any) => tx.type === 'gasto' && tx.title !== 'Pago de Terreno').map((tx: any) => (
+                        <div 
+                          key={tx.id} 
+                          className="player-card" 
+                          style={{ 
+                            borderLeft: `4px solid #ef4444`,
+                            padding: '1rem'
+                          }}
+                        >
+                          <div className="flex-responsive" style={{ gap: '0.5rem' }}>
+                            <div style={{ minWidth: 0, flex: 1 }}>
+                              <div style={{ fontWeight: '700', fontSize: '1rem', color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>{tx.title}</span>
+                                <span style={{ fontSize: '0.65rem', padding: '0.15rem 0.4rem', borderRadius: '4px', background: '#ef444420', color: '#ef4444', fontWeight: 'bold' }}>
+                                  GASTO
+                                </span>
+                              </div>
+                              <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '0.3rem' }}>
+                                <span style={{fontWeight: 'bold', color: '#e2e8f0'}}>{tx.description}</span> • {formatDate(tx.eventDate)}
+                              </div>
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0.5rem' }}>
+                              <div style={{ fontWeight: '800', fontSize: '1.2rem', color: '#ef4444' }}>
+                                -{formatCurrency(tx.amount)}
+                              </div>
+                              {tx.receipt && (
+                                <button 
+                                  onClick={() => setViewingReceipt?.(tx.receipt)}
+                                  title={t('Ver Recibo', config.language)}
+                                  style={{ 
+                                    display: 'flex', alignItems: 'center', gap: '4px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#94a3b8', padding: '0.3rem 0.6rem', borderRadius: '8px', fontSize: '0.7rem', cursor: 'pointer' 
+                                  }}
+                                >
+                                  <Eye size={14} />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
           </>
         )}

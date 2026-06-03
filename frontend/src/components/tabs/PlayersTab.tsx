@@ -46,12 +46,20 @@ export const PlayersTab: React.FC<PlayersTabProps> = ({
             <div className="form-group"><label className="form-label">{t('Nombre Completo', config.language)} </label><input type="text" className="input-field" placeholder="Ej. Alex Rivera" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} required /></div>
             <div className="form-group"><label className="form-label">{t('Número de Camiseta', config.language)} </label><input type="number" className="input-field" placeholder="Ej. 24" value={formData.jerseyNumber} onChange={e => setFormData({ ...formData, jerseyNumber: e.target.value })} required /></div>
             <div className="form-group"><label className="form-label">{t('Posición', config.language)} </label>
-              <select className="input-field" value={formData.position} onChange={e => setFormData({ ...formData, position: e.target.value })} required>
-                <option value="" disabled>{t('Seleccione una posición', config.language)} </option>
-                {positions.map(pos => <option key={pos} value={pos}>{pos}</option>)}
-              </select>
+              <div className="position-selector">
+                {positions.map(pos => (
+                  <button
+                    type="button"
+                    key={pos}
+                    className={`position-button ${formData.position === pos ? 'active' : ''}`}
+                    onClick={() => setFormData({ ...formData, position: pos })}
+                  >
+                    {pos}
+                  </button>
+                ))}
+              </div>
             </div>
-            <div className="form-group"><label className="form-label">{t('Foto (Opcional)', config.language)}</label><input type="file" accept="image/*" className="input-field" onChange={(e) => { const file = e.target.files?.[0]; if (file) { const reader = new FileReader(); reader.onload = ev => setFormData({ ...formData, photo: ev.target?.result as string }); reader.readAsDataURL(file); } }} />{formData.photo && <img src={formData.photo} alt="Preview" style={{ marginTop: '0.5rem', height: '60px', borderRadius: '8px', objectFit: 'cover' }} />}</div>
+            <div className="form-group"><label className="form-label">{t('Foto (Opcional)', config.language)}</label><input key={formData.photo || 'player-photo-input'} type="file" accept="image/*" className="input-field" onChange={(e) => { const file = e.target.files?.[0]; if (file) { const reader = new FileReader(); reader.onload = ev => setFormData({ ...formData, photo: ev.target?.result as string }); reader.readAsDataURL(file); } }} />{formData.photo && <img src={formData.photo} alt="Preview" style={{ marginTop: '0.5rem', height: '60px', borderRadius: '8px', objectFit: 'cover' }} />}</div>
             <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               <input type="checkbox" id="isActive" className="" checked={formData.isActive !== false} onChange={e => setFormData({ ...formData, isActive: e.target.checked })} style={{ width: '20px', height: '20px', cursor: 'pointer' }} />
               <label htmlFor="isActive" className="form-label" style={{ margin: 0, cursor: 'pointer' }}>Jugador Activo</label>
@@ -96,7 +104,7 @@ export const PlayersTab: React.FC<PlayersTabProps> = ({
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'flex-end', alignItems: 'center' }}>
-                  <div style={{ fontSize: '0.8rem', padding: '0.4rem 0.8rem', borderRadius: '6px', background: player.isActive !== false ? '#22c55e20' : '#94a3b820', color: player.isActive !== false ? '#22c55e' : '#94a3b8', fontWeight: '600' }}>
+                  <div style={{ fontSize: '0.8rem', padding: '0.4rem 0.8rem', borderRadius: '6px', background: player.isActive !== false ? '#22c55e20' : '#ef444420', color: player.isActive !== false ? '#22c55e' : '#ef4444', fontWeight: '600' }}>
                     {player.isActive !== false ? 'Activo' : 'Inactivo'}
                   </div>
                   <button className="btn-icon" onClick={() => openEditModal('player', player)} title="Editar"><Edit2 size={18} /></button>

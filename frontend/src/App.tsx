@@ -272,14 +272,16 @@ function App() {
   const [notes, setNotes] = useState<Note[]>([]);
 
 
-  const [formData, setFormData] = useState({
+  const defaultPlayerFormData = {
     name: '',
     jerseyNumber: '',
     position: '',
     battingHand: 'Right',
     photo: '',
     isActive: true
-  });
+  };
+
+  const [formData, setFormData] = useState(defaultPlayerFormData);
 
   const [paymentFormData, setPaymentFormData] = useState<PaymentFormData>({
     playerId: '',
@@ -1225,10 +1227,12 @@ function App() {
       });
     };
 
+    const payloadObj = payload as T & { id?: string; _id?: string };
+    const payloadId = payloadObj.id || payloadObj._id || '';
     const actionUrl = method === 'DELETE'
       ? `${url}/${payload}`
       : method === 'PUT'
-        ? `${url}/${(payload as T).id}`
+        ? `${url}/${payloadId}`
         : url;
 
     if (!isOnline) {
@@ -1257,10 +1261,17 @@ function App() {
           });
         } else if (method === 'PUT') {
           const updatedItem = await res.json();
-          setList((prev) => prev.map((item) => item.id === updatedItem.id ? updatedItem : item));
+          const updatedId = (updatedItem as any).id || (updatedItem as any)._id || payloadId;
+          setList((prev) => prev.map((item) => {
+            const itemId = (item as any).id || (item as any)._id || '';
+            return itemId === updatedId ? { ...item, ...updatedItem } : item;
+          }));
           setTimeout(() => {
             const current = JSON.parse(localStorage.getItem(cacheKey) || '[]');
-            const updated = current.map((item: T) => item.id === updatedItem.id ? updatedItem : item);
+            const updated = current.map((item: T) => {
+              const itemId = (item as any).id || (item as any)._id || '';
+              return itemId === updatedId ? { ...item, ...(updatedItem as any) } : item;
+            });
             localStorage.setItem(cacheKey, JSON.stringify(updated));
           }, 0);
         } else {
@@ -1367,48 +1378,50 @@ function App() {
   // POST Handlers
   const handlePlayerSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name || !formData.jerseyNumber) return;
+    if (!formData.name || !formData.jerseyNumber || !formData.position) return;
 
     mutateData(API_URL, 'POST', formData, setPlayers, `softball_players_${activeTeamId}`, (success: boolean) => {
-      if (success) setFormData({ name: '', jerseyNumber: '', position: 'Infield', battingHand: 'Right', photo: '', isActive: true });
+      if (success) setFormData(defaultPlayerFormData);
     });
+  };
+
+  const buildPaymentPayload = (paymentData: PaymentFormData) => {
+    let selectedPlayer: Player | null = null;
+    if (paymentData.playerId) {
+      selectedPlayer = players.find((p) => p.id === paymentData.playerId) || null;
+    }
+
+    let finalNotes = paymentData.notes;
+    if (['Pago de Play', 'Pago Triangular', 'Pago Cuadrangular', 'Pago Torneo'].includes(paymentData.description) && paymentData.gameId) {
+      const selectedGame = games.find(g => g.id === paymentData.gameId);
+      if (selectedGame) {
+        const gameDateStr = formatDate(selectedGame.eventDate);
+        const gameNote = `Juego Vs ${selectedGame.opponent} (${gameDateStr})`;
+        finalNotes = finalNotes ? `${gameNote} - ${finalNotes}` : gameNote;
+      }
+    } else if (paymentData.description === 'Abono' && paymentData.abonoDescription) {
+      const abonoNote = `Abono de: ${paymentData.abonoDescription}`;
+      finalNotes = finalNotes ? `${abonoNote} - ${finalNotes}` : abonoNote;
+    }
+
+    return {
+      playerId: selectedPlayer ? selectedPlayer.id : null,
+      playerName: selectedPlayer ? selectedPlayer.name : '',
+      amount: Number(paymentData.amount),
+      description: paymentData.description === 'Otro' ? paymentData.otherDescription : paymentData.description,
+      notes: finalNotes || '',
+      responsible: paymentData.responsible || '',
+      eventDate: normalizeDate(paymentData.eventDate || getTodayString()),
+      conceptId: paymentData.conceptId || null,
+      gameId: paymentData.gameId || null
+    };
   };
 
   const handlePaymentSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!paymentFormData.amount) return;
 
-    let selectedPlayer: Player | null = null;
-    if (paymentFormData.playerId) {
-      selectedPlayer = players.find((p) => p.id === paymentFormData.playerId) || null;
-    }
-
-    let finalNotes = paymentFormData.notes;
-    // Si es Pago de Play y se seleccionó un juego, armamos la nota para vincularlos automáticamente
-    if (['Pago de Play', 'Pago Triangular', 'Pago Cuadrangular', 'Pago Torneo'].includes(paymentFormData.description) && paymentFormData.gameId) {
-      const selectedGame = games.find(g => g.id === paymentFormData.gameId);
-      if (selectedGame) {
-        const gameDateStr = formatDate(selectedGame.eventDate);
-        const gameNote = `Juego Vs ${selectedGame.opponent} (${gameDateStr})`;
-        finalNotes = finalNotes ? `${gameNote} - ${finalNotes}` : gameNote;
-      }
-    } else if (paymentFormData.description === 'Abono' && paymentFormData.abonoDescription) {
-      const abonoNote = `Abono de: ${paymentFormData.abonoDescription}`;
-      finalNotes = finalNotes ? `${abonoNote} - ${finalNotes}` : abonoNote;
-    }
-
-    const payload = {
-      playerId: selectedPlayer ? selectedPlayer.id : null,
-      playerName: selectedPlayer ? selectedPlayer.name : '',
-      amount: Number(paymentFormData.amount),
-      description: paymentFormData.description === 'Otro' ? paymentFormData.otherDescription : paymentFormData.description,
-      notes: finalNotes || '',
-      responsible: paymentFormData.responsible || '',
-      eventDate: normalizeDate(paymentFormData.eventDate || getTodayString()),
-      conceptId: paymentFormData.conceptId || null,
-      gameId: paymentFormData.gameId || null
-    };
-
+    const payload = buildPaymentPayload(paymentFormData);
 
     mutateData(PAYMENT_API_URL, 'POST', payload, setPayments, `softball_payments_${activeTeamId}`, (success: boolean) => {
       if (success) {
@@ -1421,12 +1434,49 @@ function App() {
           notes: '',
           responsible: '',
           gameId: '',
-          eventDate: paymentFormData.eventDate
+          eventDate: paymentFormData.eventDate,
+          conceptId: undefined
         });
       }
     });
   };
 
+  const handlePaymentPayloadSubmit = async (paymentData: Partial<PaymentFormData>): Promise<boolean> => {
+    if (!paymentData.amount) return false;
+
+    const completePaymentData: PaymentFormData = {
+      playerId: paymentData.playerId || '',
+      amount: paymentData.amount,
+      description: paymentData.description || '',
+      otherDescription: paymentData.otherDescription || '',
+      abonoDescription: paymentData.abonoDescription || '',
+      notes: paymentData.notes || '',
+      responsible: paymentData.responsible || '',
+      gameId: paymentData.gameId || '',
+      eventDate: paymentData.eventDate || getTodayString(),
+      conceptId: paymentData.conceptId
+    };
+
+    const payload = buildPaymentPayload(completePaymentData);
+    const result = await mutateData(PAYMENT_API_URL, 'POST', payload, setPayments, `softball_payments_${activeTeamId}`, (success: boolean) => {
+      if (success) {
+        setPaymentFormData({
+          playerId: '',
+          amount: '',
+          description: '',
+          otherDescription: '',
+          abonoDescription: '',
+          notes: '',
+          responsible: '',
+          gameId: '',
+          eventDate: completePaymentData.eventDate,
+          conceptId: undefined
+        });
+      }
+    });
+
+    return result;
+  };
 
   const handleDeletePayment = async (paymentId: string): Promise<void> => {
     const deleted = await mutateData(PAYMENT_API_URL, 'DELETE', paymentId, setPayments, `softball_payments_${activeTeamId}`, () => { });
@@ -1542,7 +1592,10 @@ function App() {
     };
     const cacheKey = editModal.type === 'player' ? `softball_players_${activeTeamId}` : editModal.type === 'payment' ? `softball_payments_${activeTeamId}` : editModal.type === 'expense' ? `softball_expenses_${activeTeamId}` : `softball_games_${activeTeamId}`;
 
-    const payload = { ...editModal.data };
+    const payload = { ...editModal.data } as Record<string, unknown> & { id?: string; _id?: string };
+    if (!payload.id && payload._id) {
+      payload.id = payload._id as string;
+    }
 
     if (payload._authorizedEdit) {
       delete payload._authorizedEdit;
@@ -2643,6 +2696,7 @@ function App() {
             paymentFormData={paymentFormData}
             setPaymentFormData={setPaymentFormData}
             handlePaymentSubmit={handlePaymentSubmit}
+            handlePaymentPayloadSubmit={handlePaymentPayloadSubmit}
             players={players}
             filteredPayments={filteredPayments}
             groupConcepts={paymentConcepts}

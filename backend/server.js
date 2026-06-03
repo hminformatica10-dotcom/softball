@@ -123,6 +123,7 @@ const playerSchema = new mongoose.Schema({
   position: { type: String, required: true },
   battingHand: { type: String, required: true },
   photo: { type: String, default: '' },
+  isActive: { type: Boolean, default: true },
   createdAt: { type: Date, default: Date.now },
 });
 
@@ -403,6 +404,7 @@ app.post('/api/players', getUserId, requireTeam, async (req, res) => {
       position: req.body.position,
       battingHand: req.body.battingHand,
       photo: req.body.photo || '',
+      isActive: req.body.isActive !== false,
     });
     const savedPlayer = await newPlayer.save();
     console.log(`   Jugador creado: ${savedPlayer._id}`);
@@ -419,17 +421,22 @@ app.put('/api/players/:id', getUserId, requireTeam, async (req, res) => {
     console.log(`   Player ID: ${req.params.id}`);
     console.log(`   User ID: ${req.userId}`);
     console.log(`   Team ID: ${req.teamId}`);
-    console.log(`   Nuevos datos:`, { name: req.body.name, position: req.body.position });
+    console.log(`   Nuevos datos:`, { name: req.body.name, position: req.body.position, isActive: req.body.isActive });
     
+    const updateData = {
+      name: req.body.name,
+      jerseyNumber: req.body.jerseyNumber,
+      position: req.body.position,
+      battingHand: req.body.battingHand,
+      photo: req.body.photo || '',
+    };
+    if (req.body.isActive !== undefined) {
+      updateData.isActive = req.body.isActive;
+    }
+
     const updatedPlayer = await Player.findOneAndUpdate(
       { _id: req.params.id, userId: req.userId, teamId: req.teamId }, 
-      {
-        name: req.body.name,
-        jerseyNumber: req.body.jerseyNumber,
-        position: req.body.position,
-        battingHand: req.body.battingHand,
-        photo: req.body.photo || '',
-      },
+      updateData,
       { new: true }
     );
     if (!updatedPlayer) {
