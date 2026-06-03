@@ -1108,17 +1108,12 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
 
            <div className="selection-card" style={{ padding: '1rem', background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '16px' }}>
               <div style={{ color: '#94a3b8', fontSize: '0.75rem', marginBottom: '0.3rem', fontWeight: 'bold', textTransform: 'uppercase' }}>GASTOS</div>
-              <div style={{ fontSize: '1.4rem', fontWeight: 'bold', color: '#ef4444' }}>{formatCurrency(filteredExpensesTotal)}</div>
+              <div style={{ fontSize: '1.4rem', fontWeight: 'bold', color: '#ef4444' }}>{formatCurrency(otherExpensesTotal)}</div>
            </div>
 
            <div className="selection-card" style={{ padding: '1rem', background: 'rgba(249, 115, 22, 0.05)', border: '1px solid rgba(249, 115, 22, 0.2)', borderRadius: '16px' }}>
               <div style={{ color: '#94a3b8', fontSize: '0.75rem', marginBottom: '0.3rem', fontWeight: 'bold', textTransform: 'uppercase' }}>PAGO DE TERRENO</div>
               <div style={{ fontSize: '1.4rem', fontWeight: 'bold', color: '#f59e0b' }}>{formatCurrency(fieldPaymentTotal)}</div>
-           </div>
-
-           <div className="selection-card" style={{ padding: '1rem', background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '16px' }}>
-              <div style={{ color: '#94a3b8', fontSize: '0.75rem', marginBottom: '0.3rem', fontWeight: 'bold', textTransform: 'uppercase' }}>OTROS GASTOS</div>
-              <div style={{ fontSize: '1.4rem', fontWeight: 'bold', color: '#ef4444' }}>{formatCurrency(otherExpensesTotal)}</div>
            </div>
         </div>
       </div>
@@ -1281,10 +1276,10 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
                   </div>
                 )}
 
-                {/* Otros Gastos */}
+                {/* Gastos */}
                 {displayedTransactions.filter((tx: any) => tx.type === 'gasto' && tx.title !== 'Pago de Terreno').length > 0 && (
                   <div>
-                    <h3 style={{ fontSize: '1rem', fontWeight: '600', color: '#ef4444', marginBottom: '0.75rem' }}>Otros Gastos</h3>
+                    <h3 style={{ fontSize: '1rem', fontWeight: '600', color: '#ef4444', marginBottom: '0.75rem' }}>Gastos</h3>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                       {displayedTransactions.filter((tx: any) => tx.type === 'gasto' && tx.title !== 'Pago de Terreno').map((tx: any) => (
                         <div 
