@@ -274,6 +274,77 @@ app.get('/', (req, res) => {
     await migrateCollection(Expense, 'Expenses');
     await migrateCollection(Game, 'Games');
 
+    // Migración para asignar gameId a pagos existentes
+    try {
+      const paymentsWithoutGameId = await Payment.find({
+        gameId: { $in: [null, undefined, ''] },
+        $or: [
+          { description: { $in: ['Pago de Play', 'Ausente', 'Deuda Pendiente'] } },
+          { notes: { $regex: /Vs /i } }
+        ]
+      });
+
+      if (paymentsWithoutGameId.length > 0) {
+        console.log(`[MIGRACIÓN] Encontrados ${paymentsWithoutGameId.length} pagos sin gameId. Intentando asociar con juegos...`);
+        const allGames = await Game.find({});
+        let migratedCount = 0;
+
+        for (const payment of paymentsWithoutGameId) {
+          const candidateGames = allGames.filter(g => 
+            g.userId === payment.userId && 
+            String(g.teamId) === String(payment.teamId)
+          );
+
+          let bestMatch = null;
+          const paymentDateStr = payment.eventDate ? new Date(payment.eventDate).toISOString().split('T')[0] : '';
+
+          // 1. Coincidencia exacta de fecha y oponente en notas/descripción
+          for (const game of candidateGames) {
+            const gameDateStr = game.eventDate ? new Date(game.eventDate).toISOString().split('T')[0] : '';
+            const opponentName = game.opponent.toLowerCase().trim();
+            const notesLower = (payment.notes || '').toLowerCase();
+            const descLower = (payment.description || '').toLowerCase();
+            const mentionsOpponent = notesLower.includes(opponentName) || descLower.includes(opponentName);
+            const sameDate = paymentDateStr === gameDateStr;
+
+            if (mentionsOpponent && sameDate) {
+              bestMatch = game;
+              break;
+            }
+          }
+
+          // 2. Coincidencia cercana (dentro de 3 días) si no hay coincidencia exacta de fecha
+          if (!bestMatch) {
+            let minDiff = Infinity;
+            for (const game of candidateGames) {
+              const opponentName = game.opponent.toLowerCase().trim();
+              const notesLower = (payment.notes || '').toLowerCase();
+              const descLower = (payment.description || '').toLowerCase();
+              const mentionsOpponent = notesLower.includes(opponentName) || descLower.includes(opponentName);
+
+              if (mentionsOpponent && payment.eventDate && game.eventDate) {
+                const diffMs = Math.abs(new Date(payment.eventDate).getTime() - new Date(game.eventDate).getTime());
+                const diffDays = diffMs / (1000 * 60 * 60 * 24);
+                if (diffDays <= 3 && diffDays < minDiff) {
+                  minDiff = diffDays;
+                  bestMatch = game;
+                }
+              }
+            }
+          }
+
+          if (bestMatch) {
+            payment.gameId = bestMatch._id.toString();
+            await payment.save({ validateBeforeSave: false });
+            migratedCount++;
+          }
+        }
+        console.log(`[MIGRACIÓN] gameId asignado exitosamente a ${migratedCount} pagos.`);
+      }
+    } catch (migErr) {
+      console.error('Error durante la migración de pagos a juegos:', migErr.message);
+    }
+
     console.log('Verificación/Migración de fechas completada.');
   } catch (e) {
     console.error('Error durante la migración de datos:', e.message);

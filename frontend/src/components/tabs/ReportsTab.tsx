@@ -50,6 +50,20 @@ interface ReportsTabProps {
   setViewingReceipt?: (val: string | null) => void;
 }
 
+const isPaymentForGame = (p: Payment, g: Game) => {
+  if (p.gameId) {
+    return p.gameId === g.id;
+  }
+  if (!p.notes) return false;
+  const expectedOpponent = `Vs ${g.opponent}`.toLowerCase();
+  const notesMatch = p.notes.toLowerCase().includes(expectedOpponent);
+  if (!notesMatch) return false;
+  
+  const pDate = (p.eventDate || p.date || '').split('T')[0];
+  const gDate = (g.eventDate || g.date || '').split('T')[0];
+  return pDate === gDate;
+};
+
 export const ReportsTab: React.FC<ReportsTabProps> = ({
   config,
   payments,
@@ -320,11 +334,7 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
     
     const gameGroups = sortedGamesForReport.map(game => {
       const gameDateStr = formatDate(game.eventDate || game.date || '');
-      const expectedOpponentNotes = `Vs ${game.opponent}`;
-      
-      const gamePayments = filteredReportPayments.filter(p => 
-        p.gameId === game.id || (p.notes && p.notes.includes(expectedOpponentNotes))
-      );
+      const gamePayments = filteredReportPayments.filter(p => isPaymentForGame(p, game));
 
       const gameIncome = gamePayments
         .filter(p => p.description !== 'Deuda Pendiente')
@@ -345,7 +355,7 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
 
     // Other/General transactions
     const otherPayments = filteredReportPayments.filter(p => {
-      return !safeGames.some(g => p.gameId === g.id || (p.notes && p.notes.includes(`Vs ${g.opponent}`)));
+      return !safeGames.some(g => isPaymentForGame(p, g));
     });
 
     const fieldPaymentExpenses = filteredReportExpenses.filter(e => e.category === 'Pago de Terreno');
@@ -627,11 +637,7 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
       
       const gameGroups = sortedGamesForReport.map(game => {
         const gameDateStr = formatDate(game.eventDate || game.date || '');
-        const expectedOpponentNotes = `Vs ${game.opponent}`;
-        
-        const gamePayments = filteredReportPayments.filter(p => 
-          p.gameId === game.id || (p.notes && p.notes.includes(expectedOpponentNotes))
-        );
+        const gamePayments = filteredReportPayments.filter(p => isPaymentForGame(p, game));
 
         const gameIncome = gamePayments
           .filter(p => p.description !== 'Deuda Pendiente')
@@ -652,7 +658,7 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
 
       // Other/General transactions
       const otherPayments = filteredReportPayments.filter(p => {
-        return !safeGames.some(g => p.gameId === g.id || (p.notes && p.notes.includes(`Vs ${g.opponent}`)));
+        return !safeGames.some(g => isPaymentForGame(p, g));
       });
 
       const fieldPaymentExpenses = filteredReportExpenses.filter(e => e.category === 'Pago de Terreno');

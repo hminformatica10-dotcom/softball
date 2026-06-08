@@ -191,13 +191,20 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
       // 2. Filter by game select dropdown
       let matchGame = true;
       if (selectedGameId !== 'all') {
-        if (p.gameId === selectedGameId) {
-          matchGame = true;
+        if (p.gameId) {
+          matchGame = p.gameId === selectedGameId;
         } else {
           const selectedGame = (games || []).find(g => g.id === selectedGameId);
           if (selectedGame && selectedGame.opponent) {
             const expectedOpponent = `Vs ${selectedGame.opponent}`.toLowerCase();
-            matchGame = !!(p.notes && p.notes.toLowerCase().includes(expectedOpponent));
+            const notesMatch = !!(p.notes && p.notes.toLowerCase().includes(expectedOpponent));
+            if (notesMatch) {
+              const pDate = (p.eventDate || p.date || '').split('T')[0];
+              const gDate = (selectedGame.eventDate || selectedGame.date || '').split('T')[0];
+              matchGame = pDate === gDate;
+            } else {
+              matchGame = false;
+            }
           } else {
             matchGame = false;
           }

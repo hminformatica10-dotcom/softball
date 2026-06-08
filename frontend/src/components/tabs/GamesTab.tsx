@@ -99,7 +99,12 @@ export const GamesTab: React.FC<GamesTabProps> = ({
                       </div>
                     </div>
                     <div style={{ minWidth: 0, flex: 1 }}>
-                      <div style={{ fontWeight: 700, fontSize: '1.05rem', color: '#f8fafc', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Vs {game.opponent}</div>
+                      <div style={{ fontWeight: 700, fontSize: '1.05rem', color: '#f8fafc', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span>Vs {game.opponent}</span>
+                        <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: '400', background: 'rgba(255,255,255,0.03)', padding: '1px 6px', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                          ID: {game.id ? (game.id.length > 8 ? `${game.id.substring(0, 8)}...` : game.id) : 'N/A'}
+                        </span>
+                      </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap', marginTop: '0.1rem' }}>
                         <span style={{ 
                           padding: '1px 6px', borderRadius: '6px', fontSize: '0.7rem', fontWeight: '800', textTransform: 'uppercase',

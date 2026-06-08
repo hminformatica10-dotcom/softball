@@ -63,10 +63,19 @@ export const DebtsTab: React.FC<DebtsTabProps> = ({
 
   const unpaidPlayers = useMemo(() => {
     if (!latestGame) return [] as Player[];
-    const notesFragment = `Vs ${latestGame.opponent}`;
     return players.filter(p => p.isActive !== false).filter(p => {
-      const payment = payments.find(pay => pay.playerId === p.id && pay.notes && pay.notes.includes(notesFragment));
-      const absent = payments.find(pay => pay.playerId === p.id && pay.description === 'Ausente' && pay.notes && pay.notes.includes(notesFragment));
+      const matchesLatestGame = (pay: Payment) => {
+        if (pay.gameId) return pay.gameId === latestGame.id;
+        const expected = `Vs ${latestGame.opponent}`.toLowerCase();
+        const notesMatch = !!(pay.notes && pay.notes.toLowerCase().includes(expected));
+        if (!notesMatch) return false;
+        const pDate = (pay.eventDate || pay.date || '').split('T')[0];
+        const gDate = (latestGame.eventDate || latestGame.date || '').split('T')[0];
+        return pDate === gDate;
+      };
+
+      const payment = payments.find(pay => pay.playerId === p.id && matchesLatestGame(pay));
+      const absent = payments.find(pay => pay.playerId === p.id && pay.description === 'Ausente' && matchesLatestGame(pay));
       const paid = payment && payment.description !== 'Deuda Pendiente' && payment.description !== 'Ausente';
       return !paid && !absent;
     }).sort((a,b) => a.name.localeCompare(b.name));
@@ -76,7 +85,7 @@ export const DebtsTab: React.FC<DebtsTabProps> = ({
     if (!latestGame) return;
     const gameDateStr = formatDate(latestGame.eventDate || latestGame.date || '');
     const amount = Number(latestGame.feePerPerson) || Number(prompt(`Monto a cobrar para ${player.name}:`, String(latestGame.feePerPerson || '0'))) || 0;
-    const payload = { playerId: player.id, playerName: player.name, amount, description: 'Pago de Play', notes: `Juego Vs ${latestGame.opponent} (${gameDateStr})`, eventDate: normalizeDate(latestGame.eventDate || latestGame.date || '') };
+    const payload = { playerId: player.id, playerName: player.name, amount, description: 'Pago de Play', notes: `Juego Vs ${latestGame.opponent} (${gameDateStr})`, eventDate: normalizeDate(latestGame.eventDate || latestGame.date || ''), gameId: latestGame.id };
 
     try {
       if (!navigator.onLine) {
@@ -100,7 +109,7 @@ export const DebtsTab: React.FC<DebtsTabProps> = ({
     if (!latestGame) return;
     if (!confirm(`¿Marcar a ${player.name} como ausente?`)) return;
     const gameDateStr = formatDate(latestGame.eventDate || latestGame.date || '');
-    const payload = { playerId: player.id, playerName: player.name, amount: 0, description: 'Ausente', notes: `Juego Vs ${latestGame.opponent} (${gameDateStr})`, eventDate: normalizeDate(latestGame.eventDate || latestGame.date || '') };
+    const payload = { playerId: player.id, playerName: player.name, amount: 0, description: 'Ausente', notes: `Juego Vs ${latestGame.opponent} (${gameDateStr})`, eventDate: normalizeDate(latestGame.eventDate || latestGame.date || ''), gameId: latestGame.id };
 
     try {
       if (!navigator.onLine) {

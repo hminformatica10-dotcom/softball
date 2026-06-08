@@ -442,7 +442,16 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
     if (!game) return;
     // Recalcula total desde pagos actuales
     const total = payments.reduce((sum, p) => {
-      if ((p.gameId && p.gameId === game.id) || (p.notes && p.notes.includes(`Vs ${game.opponent}`))) {
+      const isForGame = p.gameId ? p.gameId === game.id : (() => {
+        const expectedNotesFragment = `Vs ${game.opponent}`.toLowerCase();
+        const notesMatch = !!(p.notes && p.notes.toLowerCase().includes(expectedNotesFragment));
+        if (!notesMatch) return false;
+        const pDate = (p.eventDate || p.date || '').split('T')[0];
+        const gDate = (game.eventDate || game.date || '').split('T')[0];
+        return pDate === gDate;
+      })();
+      
+      if (isForGame) {
         if (['Pago de Play', 'Pago Triangular', 'Pago Cuadrangular', 'Pago Torneo'].includes(p.description)) {
           return sum + (Number(p.amount) || 0);
         }
@@ -648,7 +657,15 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
             const attendanceDescriptions = [...paidDescriptions, 'Ausente', 'Deuda Pendiente'];
 
             const matchesSelectedGame = (payment: Payment) => {
-              return (payment.gameId && payment.gameId === selectedGame.id) || (payment.notes && payment.notes.includes(expectedNotesFragment1));
+              if (payment.gameId) {
+                return payment.gameId === selectedGame.id;
+              }
+              const expectedNotesFragment = `Vs ${selectedGame.opponent}`.toLowerCase();
+              const notesMatch = !!(payment.notes && payment.notes.toLowerCase().includes(expectedNotesFragment));
+              if (!notesMatch) return false;
+              const pDate = (payment.eventDate || payment.date || '').split('T')[0];
+              const gDate = (selectedGame.eventDate || selectedGame.date || '').split('T')[0];
+              return pDate === gDate;
             };
 
             const getPlayerGamePayments = (playerId: string) =>
