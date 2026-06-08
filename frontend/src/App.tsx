@@ -5,7 +5,7 @@ import { App as CapApp } from '@capacitor/app';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { Capacitor } from '@capacitor/core';
 import { jwtDecode } from 'jwt-decode';
-import { Users, User, TrendingUp, Sliders, Trash2, Activity, Home, DollarSign, CreditCard, BarChart2, PlusCircle, Edit2, AlertCircle, Search, Settings, Calendar, ClipboardCheck, Menu, X, Wifi, WifiOff, Lock, ShieldCheck, Eye, EyeOff, RefreshCw, FileText } from 'lucide-react';
+import { Users, User, TrendingUp, Sliders, Trash2, Activity, Home, DollarSign, CreditCard, BarChart2, PlusCircle, Edit2, AlertCircle, Search, Settings, Calendar, ClipboardCheck, Menu, X, Wifi, WifiOff, Lock, ShieldCheck, Eye, EyeOff, RefreshCw, FileText, Shield } from 'lucide-react';
 import type { Player, Payment, Expense, Game, AppConfig, PaymentConcept } from './types';
 import { DashboardTab } from './components/tabs/DashboardTab';
 
@@ -52,7 +52,8 @@ import { AttendanceTab } from './components/tabs/AttendanceTab';
 import { DebtsTab } from './components/tabs/DebtsTab';
 import { ReportsTab } from './components/tabs/ReportsTab';
 import { NotesTab } from './components/tabs/NotesTab';
-import type { Player, Payment, PaymentConcept, Expense, Game, AppConfig, Note } from './types';
+import { OpponentsTab } from './components/tabs/OpponentsTab';
+import type { Player, Payment, PaymentConcept, Expense, Game, AppConfig, Note, Opponent } from './types';
 
 
 const getTodayString = () => {
@@ -258,6 +259,7 @@ function App() {
   const TEAM_API_URL = `${apiUrl}/api/teams`;
   const CONCEPT_API_URL = `${apiUrl}/api/payment-concepts`;
   const NOTE_API_URL = `${apiUrl}/api/notes`;
+  const OPPONENT_API_URL = `${apiUrl}/api/opponents`;
 
   const [user, setUser] = useState<Record<string, unknown> | null>(null); // Auth State
   const [activeTab, setActiveTab] = useState('Inicio');
@@ -266,6 +268,8 @@ function App() {
 
   const [players, setPlayers] = useState<Player[]>([]);
   const [loadingPlayers, setLoadingPlayers] = useState(true);
+  const [opponents, setOpponents] = useState<Opponent[]>([]);
+  const [loadingOpponents, setLoadingOpponents] = useState(true);
 
   const [payments, setPayments] = useState<Payment[]>([]);
 
@@ -315,6 +319,7 @@ function App() {
 
   const [gameFormData, setGameFormData] = useState({
     opponent: '',
+    opponentId: '',
     eventDate: getTodayString(),
     time: '',
     location: '',
@@ -643,7 +648,7 @@ function App() {
     });
     setFormData({ name: '', jerseyNumber: '', position: '', battingHand: 'Right', photo: '', isActive: true });
     setExpenseFormData({ category: '', otherCategory: '', amount: '', description: '', receipt: '', eventDate: getTodayString(), responsible: '' });
-    setGameFormData({ opponent: '', eventDate: getTodayString(), time: '', location: '', result: 'Pendiente', feePerPerson: '', fieldPayment: '' });
+    setGameFormData({ opponent: '', opponentId: '', eventDate: getTodayString(), time: '', location: '', result: 'Pendiente', feePerPerson: '', fieldPayment: '' });
     setPaymentControlGameId('');
 
     // 2. Limpiar Búsquedas de Texto
@@ -1120,7 +1125,8 @@ function App() {
         fetchPlayers(),
         fetchPayments(),
         fetchExpenses(),
-        fetchGames()
+        fetchGames(),
+        fetchOpponents()
       ]).catch(e => console.error('App: Error refrescando datos:', e));
     }
 
@@ -1184,6 +1190,14 @@ function App() {
       return;
     }
 
+    // Si hay elementos pendientes en la cola de sincronización, no sobreescribir con datos del servidor
+    // para evitar que los cambios locales optimistas se pierdan antes de sincronizarse.
+    const pendingQueue = JSON.parse(localStorage.getItem('softball_sync_queue') || '[]');
+    if (pendingQueue.length > 0) {
+      if (setLoading) setLoading(false);
+      return;
+    }
+
     try {
       if (!cached && setLoading) setLoading(true);
       const res = await fetchWithFallback(url, { headers: getAuthHeaders() });
@@ -1203,6 +1217,7 @@ function App() {
   const fetchPayments = () => fetchData(`${apiUrl}/api/payments`, `softball_payments_${activeTeamId}`, setPayments, () => { });
   const fetchExpenses = () => fetchData(`${apiUrl}/api/expenses`, `softball_expenses_${activeTeamId}`, setExpenses, () => { });
   const fetchGames = () => fetchData(`${apiUrl}/api/games`, `softball_games_${activeTeamId}`, setGames, setLoadingGames);
+  const fetchOpponents = () => fetchData(`${apiUrl}/api/opponents`, `softball_opponents_${activeTeamId}`, setOpponents, setLoadingOpponents);
   const fetchPaymentConcepts = () => fetchData(`${apiUrl}/api/payment-concepts`, `softball_concepts_${activeTeamId}`, setPaymentConcepts, setLoadingConcepts);
   const fetchNotes = () => fetchData(`${apiUrl}/api/notes`, `softball_notes_${activeTeamId}`, setNotes, () => { });
 
@@ -1213,7 +1228,7 @@ function App() {
     payload: T | string,
     setList: React.Dispatch<React.SetStateAction<T[]>>,
     cacheKey: string,
-    successCallback: (success: boolean) => void
+    successCallback: (success: boolean, errorMsg?: string) => void
   ): Promise<boolean> => {
     const handleOptimisticUpdate = (tempId: string) => {
       setList((prev) => {
@@ -1295,7 +1310,14 @@ function App() {
         if (res.status >= 500) throw new Error('Server Error');
         const errorText = await res.text();
         console.error('API Error Response:', res.status, errorText);
-        successCallback(false);
+        let errorMsg = 'Error en la operación';
+        try {
+          const errObj = JSON.parse(errorText);
+          if (errObj && errObj.error) errorMsg = errObj.error;
+        } catch (_) {
+          if (errorText) errorMsg = errorText;
+        }
+        successCallback(false, errorMsg);
         return false;
       }
     } catch (err: unknown) {
@@ -1375,6 +1397,7 @@ function App() {
       fetchPayments();
       fetchExpenses();
       fetchGames();
+      fetchOpponents();
       fetchPaymentConcepts();
       fetchNotes();
     }
@@ -1550,7 +1573,7 @@ function App() {
 
     mutateData(GAME_API_URL, 'POST', payload, setGamesSorted, `softball_games_${activeTeamId}`, (success: boolean) => {
       if (success) {
-        setGameFormData({ opponent: '', eventDate: getTodayString(), time: '', location: '', result: 'Pendiente', feePerPerson: '', fieldPayment: '' });
+        setGameFormData({ opponent: '', opponentId: '', eventDate: getTodayString(), time: '', location: '', result: 'Pendiente', feePerPerson: '', fieldPayment: '' });
 
         // If a fieldPayment was provided, also create an Expense record so reports reflect the cost
         try {
@@ -1582,21 +1605,24 @@ function App() {
 
     const url = editModal.type === 'player' ? API_URL :
       editModal.type === 'payment' ? PAYMENT_API_URL :
-        editModal.type === 'expense' ? EXPENSE_API_URL : GAME_API_URL;
+        editModal.type === 'expense' ? EXPENSE_API_URL :
+          editModal.type === 'opponent' ? OPPONENT_API_URL : GAME_API_URL;
 
-    const setList = (update: React.SetStateAction<(Player | Payment | Expense | Game)[]>) => {
+    const setList = (update: React.SetStateAction<(Player | Payment | Expense | Game | Opponent)[]>) => {
       if (editModal.type === 'game') {
         setGames((prev: Game[]) => {
           const next = typeof update === 'function' ? (update as (prev: Game[]) => Game[])(prev) : update as Game[];
           return [...next].sort((a, b) => new Date(a.eventDate || a.date || 0).getTime() - new Date(b.eventDate || b.date || 0).getTime());
         });
+      } else if (editModal.type === 'opponent') {
+        setOpponents(update as React.SetStateAction<Opponent[]>);
       } else {
         const primarySetter = editModal.type === 'player' ? setPlayers :
           editModal.type === 'payment' ? setPayments : setExpenses;
         primarySetter(update as React.SetStateAction<Player[] | Payment[] | Expense[]>);
       }
     };
-    const cacheKey = editModal.type === 'player' ? `softball_players_${activeTeamId}` : editModal.type === 'payment' ? `softball_payments_${activeTeamId}` : editModal.type === 'expense' ? `softball_expenses_${activeTeamId}` : `softball_games_${activeTeamId}`;
+    const cacheKey = editModal.type === 'player' ? `softball_players_${activeTeamId}` : editModal.type === 'payment' ? `softball_payments_${activeTeamId}` : editModal.type === 'expense' ? `softball_expenses_${activeTeamId}` : editModal.type === 'opponent' ? `softball_opponents_${activeTeamId}` : `softball_games_${activeTeamId}`;
 
     const payload = { ...editModal.data } as Record<string, unknown> & { id?: string; _id?: string };
     if (!payload.id && payload._id) {
@@ -1631,24 +1657,36 @@ function App() {
 
   const executeDelete = () => {
     const { type, id } = deleteModal;
-    const url = type === 'player' ? API_URL : type === 'payment' ? PAYMENT_API_URL : type === 'expense' ? EXPENSE_API_URL : GAME_API_URL;
+    const url = type === 'player' ? API_URL :
+      type === 'payment' ? PAYMENT_API_URL :
+        type === 'expense' ? EXPENSE_API_URL :
+          type === 'opponent' ? OPPONENT_API_URL : GAME_API_URL;
 
-    const setList = (update: React.SetStateAction<(Player | Payment | Expense | Game)[]>) => {
+    const setList = (update: React.SetStateAction<(Player | Payment | Expense | Game | Opponent)[]>) => {
       if (type === 'game') {
         setGames((prev: Game[]) => {
           const next = typeof update === 'function' ? (update as (prev: Game[]) => Game[])(prev) : update as Game[];
           return [...next].sort((a, b) => new Date(a.eventDate).getTime() - new Date(b.eventDate).getTime());
         });
+      } else if (type === 'opponent') {
+        setOpponents(update as React.SetStateAction<Opponent[]>);
       } else {
         const primarySetter = type === 'player' ? setPlayers :
           type === 'payment' ? setPayments : setExpenses;
         primarySetter(update as React.SetStateAction<Player[] | Payment[] | Expense[]>);
       }
     };
-    const cacheKey = type === 'player' ? `softball_players_${activeTeamId}` : type === 'payment' ? `softball_payments_${activeTeamId}` : type === 'expense' ? `softball_expenses_${activeTeamId}` : `softball_games_${activeTeamId}`;
+    const cacheKey = type === 'player' ? `softball_players_${activeTeamId}` :
+      type === 'payment' ? `softball_payments_${activeTeamId}` :
+        type === 'expense' ? `softball_expenses_${activeTeamId}` :
+          type === 'opponent' ? `softball_opponents_${activeTeamId}` : `softball_games_${activeTeamId}`;
 
-    mutateData(url, 'DELETE', id, setList, cacheKey, (success: boolean) => {
-      if (success) setDeleteModal({ isOpen: false, type: '', id: '' });
+    mutateData(url, 'DELETE', id, setList as any, cacheKey, (success: boolean, errorMsg?: string) => {
+      if (success) {
+        setDeleteModal({ isOpen: false, type: '', id: '' });
+      } else {
+        alert(errorMsg || 'No se pudo eliminar el registro.');
+      }
     });
   };
 
@@ -2243,7 +2281,31 @@ function App() {
                   )}
                   {editModal.type === 'game' && (
                     <>
-                      <div className="form-group"><label className="form-label">{t('Oponente / Vs', config.language)} </label><input className="input-field" value={editModal.data.opponent} onChange={(e) => setEditModal({ ...editModal, data: { ...editModal.data, opponent: e.target.value } })} required /></div>
+                      <div className="form-group">
+                        <label className="form-label">{t('Oponente / Vs', config.language)} *</label>
+                        <select
+                          className="input-field"
+                          value={editModal.data.opponentId || ''}
+                          onChange={(e) => {
+                            const selectedId = e.target.value;
+                            const opp = opponents.find(o => o.id === selectedId);
+                            setEditModal({
+                              ...editModal,
+                              data: {
+                                ...editModal.data,
+                                opponentId: selectedId,
+                                opponent: opp ? opp.name : ''
+                              }
+                            });
+                          }}
+                          required
+                        >
+                          <option value="" disabled>Seleccione un oponente</option>
+                          {opponents.map(o => (
+                            <option key={o.id} value={o.id}>{o.name}</option>
+                          ))}
+                        </select>
+                      </div>
                       <div className="form-group"><label className="form-label">Fecha</label><input className="input-field" type="date" value={formatToInputDate(editModal.data.eventDate)} onChange={(e) => setEditModal({ ...editModal, data: { ...editModal.data, eventDate: e.target.value } })} required style={{ colorScheme: 'dark' }} /></div>
                       <div className="form-group"><label className="form-label">{t('Hora (Opcional)', config.language)} </label><input className="input-field" type="time" value={editModal.data.time || ''} onChange={(e) => setEditModal({ ...editModal, data: { ...editModal.data, time: e.target.value } })} style={{ colorScheme: 'dark' }} /></div>
                       <div className="form-group"><label className="form-label">{t('Lugar / Estadio (Opcional)', config.language)} </label><input className="input-field" value={editModal.data.location || ''} onChange={(e) => setEditModal({ ...editModal, data: { ...editModal.data, location: e.target.value } })} /></div>
@@ -2255,6 +2317,61 @@ function App() {
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                         <div className="form-group"><label className="form-label">Cuota por juego ($)</label><input className="input-field" type="number" step="0.01" value={editModal.data.feePerPerson || ''} onChange={(e) => setEditModal({ ...editModal, data: { ...editModal.data, feePerPerson: e.target.value } })} /></div>
                         <div className="form-group"><label className="form-label">Pago de terreno ($)</label><input className="input-field" type="number" step="0.01" value={editModal.data.fieldPayment || ''} onChange={(e) => setEditModal({ ...editModal, data: { ...editModal.data, fieldPayment: e.target.value } })} /></div>
+                      </div>
+                    </>
+                  )}
+                  {editModal.type === 'opponent' && (
+                    <>
+                      <div className="form-group">
+                        <label className="form-label">Nombre del Equipo</label>
+                        <input
+                          className="input-field"
+                          value={(editModal.data as any).name || ''}
+                          onChange={(e) => setEditModal({ ...editModal, data: { ...editModal.data, name: e.target.value } })}
+                          required
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Ciudad (Opcional)</label>
+                        <input
+                          className="input-field"
+                          value={(editModal.data as any).city || ''}
+                          onChange={(e) => setEditModal({ ...editModal, data: { ...editModal.data, city: e.target.value } })}
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Categoría (Opcional)</label>
+                        <input
+                          className="input-field"
+                          value={(editModal.data as any).category || ''}
+                          onChange={(e) => setEditModal({ ...editModal, data: { ...editModal.data, category: e.target.value } })}
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Entrenador (Opcional)</label>
+                        <input
+                          className="input-field"
+                          value={(editModal.data as any).coach || ''}
+                          onChange={(e) => setEditModal({ ...editModal, data: { ...editModal.data, coach: e.target.value } })}
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Teléfono (Opcional)</label>
+                        <input
+                          className="input-field"
+                          value={(editModal.data as any).phone || ''}
+                          onChange={(e) => setEditModal({ ...editModal, data: { ...editModal.data, phone: e.target.value } })}
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Observaciones (Opcional)</label>
+                        <textarea
+                          className="input-field"
+                          value={(editModal.data as any).notes || ''}
+                          onChange={(e) => setEditModal({ ...editModal, data: { ...editModal.data, notes: e.target.value } })}
+                          rows={3}
+                          style={{ resize: 'vertical' }}
+                        />
                       </div>
                     </>
                   )}
@@ -2617,6 +2734,7 @@ function App() {
   const navItems = [
     { id: 'Inicio', title: t('Inicio', config.language), icon: Home },
     { id: 'Jugadores', title: t('Jugadores', config.language), icon: Users },
+    { id: 'Oponentes', title: t('Oponentes', config.language), icon: Shield },
     { id: 'Juegos', title: t('Juegos', config.language), icon: Calendar },
     { id: 'Asistencia', title: t('Asistencia', config.language), icon: ClipboardCheck },
     { id: 'Pagos', title: t('Pagos', config.language), icon: DollarSign },
@@ -2666,6 +2784,7 @@ function App() {
             confirmDelete={confirmDelete}
             showForm={showGameForm}
             setShowForm={setShowGameForm}
+            opponents={opponents}
           />
         );
       case 'Gastos':
@@ -2798,6 +2917,19 @@ function App() {
             formatDate={formatDate}
           />
         );
+      case 'Oponentes':
+        return (
+          <OpponentsTab
+            config={config}
+            opponents={opponents}
+            setOpponents={setOpponents}
+            activeTeamId={activeTeamId}
+            OPPONENT_API_URL={OPPONENT_API_URL}
+            mutateData={mutateData}
+            openEditModal={openEditModal}
+            confirmDelete={confirmDelete}
+          />
+        );
       default: return null;
     }
   };
@@ -2844,7 +2976,7 @@ function App() {
         </div>
         <nav className="sidebar-nav-items">
           <div style={{ padding: '0.5rem 1rem 0.25rem', fontSize: '0.75rem', fontWeight: '800', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '1px' }}>Deportivo & Equipo</div>
-          {navItems.filter(i => ['Inicio', 'Jugadores', 'Juegos', 'Alineación', 'Anotar'].includes(i.id)).map((item) => {
+          {navItems.filter(i => ['Inicio', 'Jugadores', 'Oponentes', 'Juegos', 'Alineación', 'Anotar'].includes(i.id)).map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
             return (

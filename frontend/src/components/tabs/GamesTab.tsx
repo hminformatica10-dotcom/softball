@@ -1,7 +1,7 @@
 import React from 'react';
 import { Calendar, Activity, Search, Edit2, Trash2 } from 'lucide-react';
 import { t } from '../../translations';
-import type { Game, AppConfig } from '../../types';
+import type { Game, AppConfig, Opponent } from '../../types';
 
 interface GamesTabProps {
   config: AppConfig;
@@ -19,6 +19,7 @@ interface GamesTabProps {
   confirmDelete: (type: string, id: string) => void;
   showForm: boolean;
   setShowForm: (val: boolean) => void;
+  opponents: Opponent[];
 }
 
 export const GamesTab: React.FC<GamesTabProps> = ({
@@ -36,7 +37,8 @@ export const GamesTab: React.FC<GamesTabProps> = ({
   openEditModal,
   confirmDelete,
   showForm,
-  setShowForm
+  setShowForm,
+  opponents
 }) => {
   return (
     <div className="grid-layout">
@@ -44,7 +46,33 @@ export const GamesTab: React.FC<GamesTabProps> = ({
         <div className="glass-panel">
           <h2 className="section-title"><Calendar size={22} color={config.primaryColor} />Registro de Juego</h2>
           <form onSubmit={handleGameSubmit}>
-            <div className="form-group"><label className="form-label">{t('Oponente / Vs', config.language)} </label><input type="text" className="input-field" placeholder="Ej. Los Tigres" value={gameFormData.opponent} onChange={e => setGameFormData({ ...gameFormData, opponent: e.target.value })} required /></div>
+            <div className="form-group">
+              <label className="form-label">{t('Oponente / Vs', config.language)} *</label>
+              <select
+                className="input-field"
+                value={gameFormData.opponentId || ''}
+                onChange={e => {
+                  const selectedId = e.target.value;
+                  const selectedOpp = opponents.find(opp => opp.id === selectedId);
+                  setGameFormData({
+                    ...gameFormData,
+                    opponentId: selectedId,
+                    opponent: selectedOpp ? selectedOpp.name : ''
+                  });
+                }}
+                required
+              >
+                <option value="" disabled>Seleccione un oponente</option>
+                {opponents.map(opp => (
+                  <option key={opp.id} value={opp.id}>{opp.name}</option>
+                ))}
+              </select>
+              {opponents.length === 0 && (
+                <div style={{ fontSize: '0.8rem', color: '#ef4444', marginTop: '0.25rem' }}>
+                  No hay oponentes registrados. Regístralos en la pestaña 'Oponentes' primero.
+                </div>
+              )}
+            </div>
             
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
               <div className="form-group"><label className="form-label">{t('Fecha', config.language)} </label><input type="date" className="input-field" value={gameFormData.eventDate} onChange={e => setGameFormData({ ...gameFormData, eventDate: e.target.value })} required style={{ colorScheme: 'dark' }} /></div>
@@ -63,7 +91,26 @@ export const GamesTab: React.FC<GamesTabProps> = ({
             </div>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
               <button type="submit" className="btn-primary" style={{ background: config.primaryColor, flex: 1 }}><Calendar size={18} />Guardar Registro</button>
-              <button type="button" className="btn-secondary" onClick={() => { setShowForm(false); setGameFormData({ opponent: '', eventDate: new Date().toISOString().split('T')[0], time: '', location: '', result: 'Pendiente', feePerPerson: '', fieldPayment: '' }); }} style={{ flex: 1 }}>Cancelar</button>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => {
+                  setShowForm(false);
+                  setGameFormData({
+                    opponent: '',
+                    opponentId: '',
+                    eventDate: new Date().toISOString().split('T')[0],
+                    time: '',
+                    location: '',
+                    result: 'Pendiente',
+                    feePerPerson: '',
+                    fieldPayment: ''
+                  });
+                }}
+                style={{ flex: 1 }}
+              >
+                Cancelar
+              </button>
             </div>
           </form>
         </div>

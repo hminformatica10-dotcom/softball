@@ -46,9 +46,21 @@ export interface Expense {
   responsible?: string;
 }
 
+export interface Opponent {
+  id: string;
+  name: string;
+  city?: string;
+  category?: string;
+  coach?: string;
+  phone?: string;
+  notes?: string;
+  createdAt?: string;
+}
+
 export interface Game {
   id: string;
   opponent: string;
+  opponentId?: string;
   eventDate: string;
   date?: string;
   time?: string;

@@ -181,6 +181,7 @@ const gameSchema = new mongoose.Schema({
   userId: { type: String, required: true },
   teamId: { type: String },
   opponent: { type: String, required: true },
+  opponentId: { type: String, default: null },
   eventDate: { type: Date, required: true },
   time: { type: String, default: '' },
   location: { type: String, default: '' },
@@ -239,6 +240,28 @@ const Expense = mongoose.model('Expense', expenseSchema);
 const Game = mongoose.model('Game', gameSchema);
 const PaymentConcept = mongoose.model('PaymentConcept', paymentConceptSchema);
 const Note = mongoose.model('Note', noteSchema);
+
+const opponentSchema = new mongoose.Schema({
+  userId: { type: String, required: true },
+  teamId: { type: String, required: true },
+  name: { type: String, required: true },
+  city: { type: String, default: '' },
+  category: { type: String, default: '' },
+  coach: { type: String, default: '' },
+  phone: { type: String, default: '' },
+  notes: { type: String, default: '' },
+  createdAt: { type: Date, default: Date.now }
+});
+
+opponentSchema.set('toJSON', {
+  transform: (document, returnedObject) => {
+    returnedObject.id = returnedObject._id.toString();
+    delete returnedObject._id;
+    delete returnedObject.__v;
+  }
+});
+
+const Opponent = mongoose.model('Opponent', opponentSchema);
 
 
 
@@ -343,6 +366,58 @@ app.get('/', (req, res) => {
       }
     } catch (migErr) {
       console.error('Error durante la migración de pagos a juegos:', migErr.message);
+    }
+
+    // Migración global: Asegurar que todos los juegos tengan un oponente en la colección Opponents
+    try {
+      const gamesWithoutOpponentId = await Game.find({
+        $or: [
+          { opponentId: { $exists: false } },
+          { opponentId: null },
+          { opponentId: '' }
+        ]
+      });
+
+      if (gamesWithoutOpponentId.length > 0) {
+        console.log(`[MIGRACIÓN] Encontrados ${gamesWithoutOpponentId.length} juegos sin opponentId. Creando y asociando oponentes...`);
+        let createdOpponentsCount = 0;
+        let linkedGamesCount = 0;
+
+        for (const game of gamesWithoutOpponentId) {
+          if (!game.opponent) continue;
+
+          // Buscar si ya existe un oponente con ese nombre para el mismo equipo/usuario
+          let opponent = await Opponent.findOne({
+            userId: game.userId,
+            teamId: game.teamId,
+            name: { $regex: new RegExp('^' + game.opponent.trim() + '$', 'i') }
+          });
+
+          if (!opponent) {
+            // Crear el oponente si no existe
+            opponent = new Opponent({
+              userId: game.userId,
+              teamId: game.teamId,
+              name: game.opponent.trim(),
+              city: game.location || '',
+              category: 'General',
+              coach: '',
+              phone: '',
+              notes: 'Creado automáticamente durante migración'
+            });
+            await opponent.save();
+            createdOpponentsCount++;
+          }
+
+          // Vincular el juego al oponente
+          game.opponentId = opponent._id.toString();
+          await game.save({ validateBeforeSave: false });
+          linkedGamesCount++;
+        }
+        console.log(`[MIGRACIÓN] Creados ${createdOpponentsCount} oponentes y vinculados a ${linkedGamesCount} juegos.`);
+      }
+    } catch (migOppErr) {
+      console.error('Error durante la migración de oponentes en juegos:', migOppErr.message);
     }
 
     console.log('Verificación/Migración de fechas completada.');
@@ -793,6 +868,7 @@ app.get('/api/games', getUserId, requireTeam, async (req, res) => {
     res.json(games.map(g => ({
       id: g._id.toString(),
       opponent: g.opponent,
+      opponentId: g.opponentId || null,
       eventDate: g.eventDate,
       time: g.time,
       location: g.location,
@@ -827,6 +903,7 @@ app.post('/api/games', getUserId, requireTeam, async (req, res) => {
       userId: req.userId,
       teamId: req.teamId,
       opponent: req.body.opponent,
+      opponentId: req.body.opponentId || null,
       eventDate: parsedDate,
       time: req.body.time || '',
       location: req.body.location || '',
@@ -843,6 +920,7 @@ app.post('/api/games', getUserId, requireTeam, async (req, res) => {
     res.status(201).json({
       id: savedGame._id.toString(),
       opponent: savedGame.opponent,
+      opponentId: savedGame.opponentId || null,
       eventDate: savedGame.eventDate,
       time: savedGame.time,
       location: savedGame.location,
@@ -873,6 +951,7 @@ app.put('/api/games/:id', getUserId, requireTeam, async (req, res) => {
     const gameDateString = req.body.eventDate || req.body.date;
     const updateData = {
       opponent: req.body.opponent,
+      opponentId: req.body.opponentId || null,
       time: req.body.time,
       location: req.body.location,
       result: req.body.result
@@ -909,6 +988,7 @@ app.put('/api/games/:id', getUserId, requireTeam, async (req, res) => {
     res.json({
       id: updatedGame._id.toString(),
       opponent: updatedGame.opponent,
+      opponentId: updatedGame.opponentId || null,
       eventDate: updatedGame.eventDate,
       time: updatedGame.time,
       location: updatedGame.location,
@@ -930,6 +1010,106 @@ app.delete('/api/games/:id', getUserId, requireTeam, async (req, res) => {
     if (!deletedGame) return res.status(404).json({ error: 'Game not found' });
     res.status(204).send();
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- OPPONENTS ROUTES ---
+
+app.get('/api/opponents', getUserId, requireTeam, async (req, res) => {
+  try {
+    console.log(`\n📥 [GET /api/opponents] Obteniendo oponentes`);
+    console.log(`   User ID: ${req.userId}`);
+    console.log(`   Team ID: ${req.teamId}`);
+    const opponents = await Opponent.find({ userId: req.userId, teamId: req.teamId }).sort({ name: 1 });
+    console.log(`   Oponentes encontrados: ${opponents.length}`);
+    res.json(opponents);
+  } catch (err) {
+    console.error(`   Error: ${err.message}`);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/opponents', getUserId, requireTeam, async (req, res) => {
+  try {
+    console.log(`\n📥 [POST /api/opponents] Creando oponente`);
+    console.log(`   User ID: ${req.userId}`);
+    console.log(`   Team ID: ${req.teamId}`);
+    
+    if (!req.body.name || req.body.name.trim() === '') {
+      return res.status(400).json({ error: 'El nombre del oponente es obligatorio.' });
+    }
+
+    const newOpponent = new Opponent({
+      userId: req.userId,
+      teamId: req.teamId,
+      name: req.body.name,
+      city: req.body.city || '',
+      category: req.body.category || '',
+      coach: req.body.coach || '',
+      phone: req.body.phone || '',
+      notes: req.body.notes || ''
+    });
+
+    const savedOpponent = await newOpponent.save();
+    console.log(`   Oponente guardado: ${savedOpponent._id}`);
+    res.status(201).json(savedOpponent);
+  } catch (err) {
+    console.error(`   Error: ${err.message}`);
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.put('/api/opponents/:id', getUserId, requireTeam, async (req, res) => {
+  try {
+    console.log(`\n📥 [PUT /api/opponents/:id] Actualizando oponente`);
+    console.log(`   Opponent ID: ${req.params.id}`);
+
+    if (!req.body.name || req.body.name.trim() === '') {
+      return res.status(400).json({ error: 'El nombre del oponente es obligatorio.' });
+    }
+
+    const updatedOpponent = await Opponent.findOneAndUpdate(
+      { _id: req.params.id, userId: req.userId, teamId: req.teamId },
+      {
+        name: req.body.name,
+        city: req.body.city || '',
+        category: req.body.category || '',
+        coach: req.body.coach || '',
+        phone: req.body.phone || '',
+        notes: req.body.notes || ''
+      },
+      { new: true }
+    );
+
+    if (!updatedOpponent) {
+      return res.status(404).json({ error: 'Oponente no encontrado' });
+    }
+
+    console.log(`   Oponente actualizado`);
+    res.json(updatedOpponent);
+  } catch (err) {
+    console.error(`   Error: ${err.message}`);
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.delete('/api/opponents/:id', getUserId, requireTeam, async (req, res) => {
+  try {
+    console.log(`\n📥 [DELETE /api/opponents/:id] Eliminando oponente`);
+    console.log(`   Opponent ID: ${req.params.id}`);
+
+    // Prevent deletion if linked to registered games
+    const gameCount = await Game.countDocuments({ opponentId: req.params.id });
+    if (gameCount > 0) {
+      return res.status(400).json({ error: 'No se puede eliminar un oponente que está asociado a juegos registrados.' });
+    }
+
+    const deletedOpponent = await Opponent.findOneAndDelete({ _id: req.params.id, userId: req.userId, teamId: req.teamId });
+    if (!deletedOpponent) return res.status(404).json({ error: 'Oponente no encontrado' });
+    res.status(204).send();
+  } catch (err) {
+    console.error(`   Error: ${err.message}`);
     res.status(500).json({ error: err.message });
   }
 });
@@ -1026,10 +1206,11 @@ app.get('/api/backup', getUserId, async (req, res) => {
     const expenses = await Expense.find({ userId: req.userId });
     const games = await Game.find({ userId: req.userId });
     const notes = await Note.find({ userId: req.userId });
+    const opponents = await Opponent.find({ userId: req.userId });
 
     res.json({
       timestamp: new Date().toISOString(),
-      data: { teams, players, payments, expenses, games, notes }
+      data: { teams, players, payments, expenses, games, notes, opponents }
     });
   } catch (err) {
     res.status(500).json({ error: 'Failed to generate backup' });
@@ -1057,6 +1238,7 @@ app.post('/api/restore', getUserId, async (req, res) => {
     const expenses = formatItems(backupData.expenses);
     const games = formatItems(backupData.games);
     const notes = formatItems(backupData.notes);
+    const opponents = formatItems(backupData.opponents);
 
     // Wipe current user data
     await Team.deleteMany({ userId: req.userId });
@@ -1065,6 +1247,7 @@ app.post('/api/restore', getUserId, async (req, res) => {
     await Expense.deleteMany({ userId: req.userId });
     await Game.deleteMany({ userId: req.userId });
     await Note.deleteMany({ userId: req.userId });
+    await Opponent.deleteMany({ userId: req.userId });
 
     // Restore new data
     if (teams.length > 0) await Team.insertMany(teams);
@@ -1073,6 +1256,7 @@ app.post('/api/restore', getUserId, async (req, res) => {
     if (expenses.length > 0) await Expense.insertMany(expenses);
     if (games.length > 0) await Game.insertMany(games);
     if (notes.length > 0) await Note.insertMany(notes);
+    if (opponents.length > 0) await Opponent.insertMany(opponents);
 
     res.json({ message: 'Backup restaurado correctamente.' });
   } catch (err) {

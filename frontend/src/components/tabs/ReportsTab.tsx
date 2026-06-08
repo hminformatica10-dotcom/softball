@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, BarChart2, TrendingUp, TrendingDown, ClipboardCheck, Sliders, Eye, AlertCircle, CheckCircle, Loader, Share2, FileText, FileSpreadsheet } from 'lucide-react';
+import { Search, BarChart2, TrendingUp, TrendingDown, ClipboardCheck, Sliders, Eye, AlertCircle, CheckCircle, Loader, Share2, FileText, FileSpreadsheet, ChevronDown, ChevronUp } from 'lucide-react';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -91,6 +91,7 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
   const [isExporting, setIsExporting] = React.useState(false);
   const [exportMessage, setExportMessage] = React.useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
   const [showMovementsManual, setShowMovementsManual] = React.useState(false);
+  const [showAllTransactions, setShowAllTransactions] = React.useState(false);
 
   // Sync internal state with prop if needed
   React.useEffect(() => {
@@ -255,7 +256,7 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
   ].sort((a, b) => new Date(b.eventDate || 0).getTime() - new Date(a.eventDate || 0).getTime());
 
   const showingAllForDate = reportSpecificDate && reportSpecificDate !== '';
-  const displayedTransactions = showingAllForDate ? combinedTransactions : combinedTransactions.slice(0, 5);
+  const displayedTransactions = (showingAllForDate || showAllTransactions) ? combinedTransactions : combinedTransactions.slice(0, 5);
 
   const hexToRgb = (hex: string): [number, number, number] => {
     try {
@@ -1329,6 +1330,48 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
                       ))}
                     </div>
                   </div>
+                )}
+
+                {combinedTransactions.length > 5 && !showingAllForDate && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAllTransactions(!showAllTransactions)}
+                    style={{
+                      marginTop: '0.5rem',
+                      background: 'transparent',
+                      border: '1px dashed rgba(255,255,255,0.1)',
+                      color: config.primaryColor || '#a855f7',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.5rem',
+                      cursor: 'pointer',
+                      fontWeight: '700',
+                      fontSize: '0.9rem',
+                      width: '100%',
+                      padding: '1rem',
+                      borderRadius: '16px',
+                      transition: 'all 0.2s',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.border = `1px solid ${config.primaryColor || '#a855f7'}`;
+                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.02)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.border = '1px dashed rgba(255,255,255,0.1)';
+                      e.currentTarget.style.background = 'transparent';
+                    }}
+                  >
+                    {showAllTransactions ? (
+                      <>
+                        <ChevronUp size={18} /> Ver menos
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown size={18} /> Ver más ({combinedTransactions.length - 5})
+                      </>
+                    )}
+                  </button>
                 )}
               </div>
             )}

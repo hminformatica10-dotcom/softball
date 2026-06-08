@@ -1,4 +1,4 @@
-import { CreditCard, Edit2, Activity, Trash2 } from 'lucide-react';
+import { CreditCard, Edit2, Activity, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
 import { t } from '../../translations';
 import type { AppConfig, Expense } from '../../types';
 import React, { useState } from 'react';
@@ -31,6 +31,7 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({
   setShowForm
 }) => {
   const [dateFilter, setDateFilter] = useState('');
+  const [showAllExpenses, setShowAllExpenses] = useState(false);
 
   return (
     <div className="grid-layout">
@@ -108,7 +109,8 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({
           const filteredByDate = dateFilter
             ? expenses.filter(e => (e.eventDate && e.eventDate.startsWith(dateFilter)) || (e.date && e.date.startsWith(dateFilter)))
             : expenses;
-          const recentExpenses = filteredByDate.sort((a, b) => new Date(b.eventDate).getTime() - new Date(a.eventDate).getTime()).slice(0, dateFilter ? undefined : 5);
+          const sorted = [...filteredByDate].sort((a, b) => new Date(b.eventDate).getTime() - new Date(a.eventDate).getTime());
+          const recentExpenses = showAllExpenses ? sorted : sorted.slice(0, 5);
 
           return recentExpenses.length === 0 ? (
             <div className="empty-state">
@@ -117,47 +119,91 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              {recentExpenses.map(expense => (
-                <div key={expense.id} className="player-card" style={{ padding: '0.75rem', borderLeft: '4px solid #ef4444' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                      <div style={{ fontWeight: 'bold', color: '#f8fafc' }}>{expense.category}</div>
-                      <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>{expense.description}</div>
-                      <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{new Date(expense.eventDate).toLocaleDateString(config.language === 'es' ? 'es-ES' : 'en-US')}</div>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <span style={{ fontWeight: 'bold', color: '#ef4444' }}>{formatCurrency(expense.amount)}</span>
-                      {openEditModal && (
-                        <button 
-                          className="btn-icon" 
-                          onClick={() => openEditModal('expense', expense)}
-                          title="Editar gasto"
-                          style={{ 
-                            opacity: 1,
-                            cursor: 'pointer'
-                          }}
-                        >
-                          <Edit2 size={16} />
-                        </button>
-                      )}
-                      {confirmDelete && (
-                        <button 
-                          className="btn-icon" 
-                          onClick={() => confirmDelete('expense', expense.id)}
-                          title="Eliminar gasto"
-                          style={{ 
-                            opacity: 1,
-                            cursor: 'pointer',
-                            color: '#ef4444'
-                          }}
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      )}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {recentExpenses.map(expense => (
+                  <div key={expense.id} className="player-card" style={{ padding: '0.75rem', borderLeft: '4px solid #ef4444' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <div style={{ fontWeight: 'bold', color: '#f8fafc' }}>{expense.category}</div>
+                        <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>{expense.description}</div>
+                        <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{new Date(expense.eventDate).toLocaleDateString(config.language === 'es' ? 'es-ES' : 'en-US')}</div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span style={{ fontWeight: 'bold', color: '#ef4444' }}>{formatCurrency(expense.amount)}</span>
+                        {openEditModal && (
+                          <button 
+                            className="btn-icon" 
+                            onClick={() => openEditModal('expense', expense)}
+                            title="Editar gasto"
+                            style={{ 
+                              opacity: 1,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <Edit2 size={16} />
+                          </button>
+                        )}
+                        {confirmDelete && (
+                          <button 
+                            className="btn-icon" 
+                            onClick={() => confirmDelete('expense', expense.id)}
+                            title="Eliminar gasto"
+                            style={{ 
+                              opacity: 1,
+                              cursor: 'pointer',
+                              color: '#ef4444'
+                            }}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
+              
+              {sorted.length > 5 && (
+                <button
+                  type="button"
+                  onClick={() => setShowAllExpenses(!showAllExpenses)}
+                  style={{
+                    marginTop: '0.5rem',
+                    background: 'transparent',
+                    border: '1px dashed rgba(255,255,255,0.1)',
+                    color: config.primaryColor || '#ef4444',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.5rem',
+                    cursor: 'pointer',
+                    fontWeight: '700',
+                    fontSize: '0.9rem',
+                    width: '100%',
+                    padding: '1rem',
+                    borderRadius: '16px',
+                    transition: 'all 0.2s',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.border = `1px solid ${config.primaryColor || '#ef4444'}`;
+                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.02)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.border = '1px dashed rgba(255,255,255,0.1)';
+                    e.currentTarget.style.background = 'transparent';
+                  }}
+                >
+                  {showAllExpenses ? (
+                    <>
+                      <ChevronUp size={18} /> Ver menos
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown size={18} /> Ver más ({sorted.length - 5})
+                    </>
+                  )}
+                </button>
+              )}
             </div>
           );
         })()}
