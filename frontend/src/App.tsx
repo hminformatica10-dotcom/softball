@@ -6,7 +6,6 @@ import { StatusBar, Style } from '@capacitor/status-bar';
 import { Capacitor } from '@capacitor/core';
 import { jwtDecode } from 'jwt-decode';
 import { Users, User, TrendingUp, Sliders, Trash2, Activity, Home, DollarSign, CreditCard, BarChart2, PlusCircle, Edit2, AlertCircle, Search, Settings, Calendar, ClipboardCheck, Menu, X, Wifi, WifiOff, Lock, ShieldCheck, Eye, EyeOff, RefreshCw, FileText, Shield } from 'lucide-react';
-import type { Player, Payment, Expense, Game, AppConfig, PaymentConcept } from './types';
 import { DashboardTab } from './components/tabs/DashboardTab';
 
 type Team = AppConfig & {
@@ -53,7 +52,7 @@ import { DebtsTab } from './components/tabs/DebtsTab';
 import { ReportsTab } from './components/tabs/ReportsTab';
 import { NotesTab } from './components/tabs/NotesTab';
 import { OpponentsTab } from './components/tabs/OpponentsTab';
-import type { Player, Payment, PaymentConcept, Expense, Game, AppConfig, Note, Opponent } from './types';
+import type { Note, Opponent } from './types';
 
 
 const getTodayString = () => {

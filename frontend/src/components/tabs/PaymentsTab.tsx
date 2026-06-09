@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { DollarSign, Activity, Trash2, PlusCircle, LayoutGrid, User, Layers, ArrowLeft, CheckCircle2, Edit2, X, Search, Calendar, ChevronDown } from 'lucide-react';
+import { DollarSign, Activity, Trash2, PlusCircle, LayoutGrid, User, Layers, ArrowLeft, CheckCircle2, Edit2, X, Search, Calendar, ChevronDown, AlertCircle } from 'lucide-react';
 import { t } from '../../translations';
 import type { Player, Payment, AppConfig, PaymentConcept, Game } from '../../types';
 
@@ -63,14 +63,13 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
   formatDate,
   onDeleteBulkPayments
 }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'individual' | 'conceptos'>('individual');
   const [selectedConcept, setSelectedConcept] = useState<PaymentConcept | null>(null);
   const [showNewConceptModal, setShowNewConceptModal] = useState(false);
   const [newConceptData, setNewConceptData] = useState({ name: '', amount: '' });
   const [groupPaymentModal, setGroupPaymentModal] = useState({
     isOpen: false,
     player: null as Player | null,
-    type: '' as 'Pago' | 'Abono' | '',
+    type: '' as 'Pago' | 'Abono' | 'Deuda' | '',
     amount: '',
     notes: '',
     responsible: '',
@@ -91,13 +90,6 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
   const [deleteError, setDeleteError] = useState('');
   const [deletePaymentModal, setDeletePaymentModal] = useState<{ isOpen: boolean, payment: Payment | null, loading: false }>({ isOpen: false, payment: null, loading: false });
 
-  const onCreateConcept = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newConceptData.name || !newConceptData.amount) return;
-    handleConceptSubmit(newConceptData.name, Number(newConceptData.amount));
-    setShowNewConceptModal(false);
-    setNewConceptData({ name: '', amount: '' });
-  };
 
   const renderIndividualForm = () => (
     <>
@@ -729,11 +721,34 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
                             gap: '0.45rem',
                             boxShadow: '0 8px 18px rgba(245, 158, 11, 0.08)'
                           }}
-                          onClick={() => openGroupPaymentModal(player, 'Abono')}
+                          onClick={() => openGroupPaymentModal(player, 'Abono', concept)}
                           title="Registrar abono"
                         >
                           <DollarSign size={16} color="#fbbf24" />
                           <span style={{ fontSize: '0.78rem', fontWeight: '700' }}>Abonar</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="selection-card"
+                          style={{
+                            width: '100%',
+                            cursor: 'pointer',
+                            background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.12), rgba(15, 23, 42, 0.85))',
+                            border: '1px solid rgba(239, 68, 68, 0.25)',
+                            borderRadius: '14px',
+                            padding: '0.6rem 0.7rem',
+                            color: '#fff1f2',
+                            textAlign: 'left',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.45rem',
+                            boxShadow: '0 8px 18px rgba(239, 68, 68, 0.08)'
+                          }}
+                          onClick={() => openGroupPaymentModal(player, 'Deuda', concept)}
+                          title="Registrar deuda pendiente"
+                        >
+                          <AlertCircle size={16} color="#fca5a5" />
+                          <span style={{ fontSize: '0.78rem', fontWeight: '700' }}>Deuda</span>
                         </button>
                       </>
                     )}
@@ -777,12 +792,12 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
     );
   };
 
-  const openGroupPaymentModal = (player: Player, type: 'Pago' | 'Abono') => {
+  const openGroupPaymentModal = (player: Player, type: 'Pago' | 'Abono' | 'Deuda', concept?: PaymentConcept) => {
     setGroupPaymentModal({
       isOpen: true,
       player,
       type,
-      amount: '',
+      amount: concept ? String(concept.totalAmount || '') : '',
       notes: '',
       responsible: '',
       eventDate: new Date().toISOString().split('T')[0]
@@ -796,7 +811,7 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
     const payload: Partial<PaymentFormData> = {
       playerId: player.id,
       amount: String(amount),
-      description: `Pago Total: ${concept.name}`,
+      description: 'Pago de Play',
       notes: `Pago completo de ${concept.name}`,
       responsible: '',
       eventDate: new Date().toISOString().split('T')[0],
@@ -810,11 +825,21 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
     e.preventDefault();
     if (!groupPaymentModal.player || !groupPaymentModal.amount) return;
 
+    const description = groupPaymentModal.type === 'Pago'
+      ? 'Pago de Play'
+      : groupPaymentModal.type === 'Deuda'
+        ? 'Deuda Pendiente'
+        : 'Abono';
+
     const payload: Partial<PaymentFormData> = {
       playerId: groupPaymentModal.player.id,
       amount: groupPaymentModal.amount,
-      description: groupPaymentModal.type === 'Pago' ? `Pago Total: ${concept.name}` : `Abono: ${concept.name}`,
-      notes: groupPaymentModal.notes || `${groupPaymentModal.type} de ${concept.name}`,
+      description,
+      notes: groupPaymentModal.notes || (groupPaymentModal.type === 'Deuda'
+        ? `Deuda pendiente de ${concept.name}`
+        : groupPaymentModal.type === 'Pago'
+          ? `Pago completo de ${concept.name}`
+          : `Abono de ${concept.name}`),
       responsible: groupPaymentModal.responsible,
       eventDate: groupPaymentModal.eventDate,
       conceptId: concept.id
@@ -828,41 +853,9 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
 
   return (
     <div className="grid-layout">
-      {/* Sub-Tab Navigation Header */}
-      <div className="glass-panel" style={{ gridColumn: '1 / -1', padding: '0.4rem', display: 'flex', gap: '0.4rem', marginBottom: '0.5rem' }}>
-        <button 
-          onClick={() => { setActiveSubTab('individual'); setSelectedConcept(null); }}
-          className={activeSubTab === 'individual' ? 'btn-primary' : 'btn-secondary'}
-          style={{ 
-            flex: 1, padding: '0.6rem 0.4rem', borderRadius: '12px', border: 'none',
-            background: activeSubTab === 'individual' ? `${config.primaryColor}20` : 'transparent',
-            color: activeSubTab === 'individual' ? config.primaryColor : '#94a3b8',
-            fontSize: '0.85rem'
-          }}
-        >
-          <LayoutGrid size={18} /> {t('Individual', config.language)}
-        </button>
-        <button 
-          onClick={() => setActiveSubTab('conceptos')}
-          className={activeSubTab === 'conceptos' ? 'btn-primary' : 'btn-secondary'}
-          style={{ 
-            flex: 1, padding: '0.6rem 0.4rem', borderRadius: '12px', border: 'none',
-            background: activeSubTab === 'conceptos' ? `${config.primaryColor}20` : 'transparent',
-            color: activeSubTab === 'conceptos' ? config.primaryColor : '#94a3b8',
-            fontSize: '0.85rem'
-          }}
-        >
-          <Layers size={18} /> {t('Grupal', config.language)}
-        </button>
-      </div>
+      {renderIndividualView()}
 
-      {activeSubTab === 'individual' ? (
-        renderIndividualView()
-      ) : (
-        <>
-          {selectedConcept ? renderConceptDetailView(selectedConcept) : renderConceptosDashboard()}
-          
-          {showNewConceptModal && (
+      {showNewConceptModal && (
             <div className="modal-overlay" style={{ zIndex: 1100 }}>
               <div className="modal-content" style={{ maxWidth: '420px' }}>
                 <div className="modal-header">
@@ -904,7 +897,7 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
             <div className="modal-overlay" style={{ zIndex: 1200 }}>
               <div className="modal-content" style={{ maxWidth: '420px' }}>
                 <div className="modal-header">
-                  <h3 className="modal-title">{groupPaymentModal.type === 'Pago' ? 'Registrar Pago' : 'Registrar Abono'}</h3>
+                  <h3 className="modal-title">{groupPaymentModal.type === 'Pago' ? 'Registrar Pago' : groupPaymentModal.type === 'Deuda' ? 'Registrar Deuda' : 'Registrar Abono'}</h3>
                   <button className="btn-icon" onClick={() => setGroupPaymentModal({ isOpen: false, player: null, type: '', amount: '', notes: '', responsible: '', eventDate: new Date().toISOString().split('T')[0] })}><X size={24} /></button>
                 </div>
                 <form onSubmit={(e) => handleGroupPaymentSubmit(e, selectedConcept)} className="modal-body">
@@ -960,13 +953,12 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
                   </div>
                   <div className="modal-footer" style={{ marginTop: '1rem' }}>
                     <button type="button" className="btn-secondary" onClick={() => setGroupPaymentModal({ isOpen: false, player: null, type: '', amount: '', notes: '', responsible: '', eventDate: new Date().toISOString().split('T')[0] })}>Cancelar</button>
-                    <button type="submit" className="btn-primary" style={{ background: config.primaryColor }}>{groupPaymentModal.type === 'Pago' ? 'Registrar Pago' : 'Registrar Abono'}</button>
+                    <button type="submit" className="btn-primary" style={{ background: config.primaryColor }}>{groupPaymentModal.type === 'Pago' ? 'Registrar Pago' : groupPaymentModal.type === 'Deuda' ? 'Registrar Deuda' : 'Registrar Abono'}</button>
                   </div>
                 </form>
               </div>
             </div>
           )}
-        </>
       )}
 
       {/* Delete by Date Modal */}
