@@ -686,33 +686,54 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
                   </div>
 
                   <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                    <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.45rem', width: '100%' }}>
                     {!isCompleted && (
                       <>
-                        <button 
-                          className="btn-primary" 
-                          style={{ 
-                            fontSize: '0.75rem', padding: '0.4rem 0.6rem', minWidth: '70px', 
-                            background: '#22c55e', 
-                            color: '#0f172a',
-                            border: 'none'
+                        <button
+                          type="button"
+                          className="selection-card"
+                          style={{
+                            width: '100%',
+                            cursor: 'pointer',
+                            background: 'linear-gradient(135deg, rgba(34, 197, 94, 0.12), rgba(15, 23, 42, 0.85))',
+                            border: '1px solid rgba(34, 197, 94, 0.25)',
+                            borderRadius: '14px',
+                            padding: '0.6rem 0.7rem',
+                            color: '#ecfdf5',
+                            textAlign: 'left',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.45rem',
+                            boxShadow: '0 8px 18px rgba(34, 197, 94, 0.08)'
                           }}
-                          onClick={() => openGroupPaymentModal(player, 'Pago')}
-                          title="Registrar pago"
+                          onClick={() => handleFullGroupPayment(player, concept)}
+                          title="Registrar pago completo"
                         >
-                          Pagar
+                          <CheckCircle2 size={16} color="#4ade80" />
+                          <span style={{ fontSize: '0.78rem', fontWeight: '700' }}>Pago completo</span>
                         </button>
-                        <button 
-                          className="btn-secondary" 
-                          style={{ 
-                            fontSize: '0.75rem', padding: '0.4rem 0.6rem', minWidth: '70px', 
-                            borderColor: '#f59e0b', 
-                            color: '#f59e0b' 
+                        <button
+                          type="button"
+                          className="selection-card"
+                          style={{
+                            width: '100%',
+                            cursor: 'pointer',
+                            background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.12), rgba(15, 23, 42, 0.85))',
+                            border: '1px solid rgba(245, 158, 11, 0.25)',
+                            borderRadius: '14px',
+                            padding: '0.6rem 0.7rem',
+                            color: '#fffbeb',
+                            textAlign: 'left',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.45rem',
+                            boxShadow: '0 8px 18px rgba(245, 158, 11, 0.08)'
                           }}
                           onClick={() => openGroupPaymentModal(player, 'Abono')}
                           title="Registrar abono"
                         >
-                          Abono
+                          <DollarSign size={16} color="#fbbf24" />
+                          <span style={{ fontSize: '0.78rem', fontWeight: '700' }}>Abonar</span>
                         </button>
                       </>
                     )}
@@ -766,6 +787,23 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
       responsible: '',
       eventDate: new Date().toISOString().split('T')[0]
     });
+  };
+
+  const handleFullGroupPayment = async (player: Player, concept: PaymentConcept) => {
+    const amount = Number(concept.totalAmount || 0);
+    if (!amount || !player?.id) return;
+
+    const payload: Partial<PaymentFormData> = {
+      playerId: player.id,
+      amount: String(amount),
+      description: `Pago Total: ${concept.name}`,
+      notes: `Pago completo de ${concept.name}`,
+      responsible: '',
+      eventDate: new Date().toISOString().split('T')[0],
+      conceptId: concept.id
+    };
+
+    await handlePaymentPayloadSubmit(payload);
   };
 
   const handleGroupPaymentSubmit = async (e: React.FormEvent, concept: PaymentConcept) => {

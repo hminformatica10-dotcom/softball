@@ -48,26 +48,31 @@ export const GamesTab: React.FC<GamesTabProps> = ({
           <form onSubmit={handleGameSubmit}>
             <div className="form-group">
               <label className="form-label">{t('Oponente / Vs', config.language)} *</label>
-              <select
-                className="input-field"
-                value={gameFormData.opponentId || ''}
-                onChange={e => {
-                  const selectedId = e.target.value;
-                  const selectedOpp = opponents.find(opp => opp.id === selectedId);
-                  setGameFormData({
-                    ...gameFormData,
-                    opponentId: selectedId,
-                    opponent: selectedOpp ? selectedOpp.name : ''
-                  });
-                }}
-                required
-              >
-                <option value="" disabled>Seleccione un oponente</option>
-                {opponents.map(opp => (
-                  <option key={opp.id} value={opp.id}>{opp.name}</option>
-                ))}
-              </select>
-              {opponents.length === 0 && (
+              {opponents.length > 0 ? (
+                <div className="opponent-selector">
+                  {opponents.map(opp => {
+                    const selected = gameFormData.opponentId === opp.id;
+                    return (
+                      <button
+                        key={opp.id}
+                        type="button"
+                        className={`opponent-choice ${selected ? 'active' : ''}`}
+                        onClick={() => setGameFormData({
+                          ...gameFormData,
+                          opponentId: opp.id,
+                          opponent: opp.name
+                        })}
+                      >
+                        <span className="opponent-choice-title">{opp.name}</span>
+                        <span className="opponent-choice-meta">
+                          {opp.city || 'Sin ciudad'}
+                          {opp.category ? ` • ${opp.category}` : ''}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
                 <div style={{ fontSize: '0.8rem', color: '#ef4444', marginTop: '0.25rem' }}>
                   No hay oponentes registrados. Regístralos en la pestaña 'Oponentes' primero.
                 </div>

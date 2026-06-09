@@ -2283,28 +2283,38 @@ function App() {
                     <>
                       <div className="form-group">
                         <label className="form-label">{t('Oponente / Vs', config.language)} *</label>
-                        <select
-                          className="input-field"
-                          value={editModal.data.opponentId || ''}
-                          onChange={(e) => {
-                            const selectedId = e.target.value;
-                            const opp = opponents.find(o => o.id === selectedId);
-                            setEditModal({
-                              ...editModal,
-                              data: {
-                                ...editModal.data,
-                                opponentId: selectedId,
-                                opponent: opp ? opp.name : ''
-                              }
-                            });
-                          }}
-                          required
-                        >
-                          <option value="" disabled>Seleccione un oponente</option>
-                          {opponents.map(o => (
-                            <option key={o.id} value={o.id}>{o.name}</option>
-                          ))}
-                        </select>
+                        {opponents.length > 0 ? (
+                          <div className="opponent-selector">
+                            {opponents.map((opp) => {
+                              const selected = (editModal.data as any).opponentId === opp.id;
+                              return (
+                                <button
+                                  key={opp.id}
+                                  type="button"
+                                  className={`opponent-choice ${selected ? 'active' : ''}`}
+                                  onClick={() => setEditModal({
+                                    ...editModal,
+                                    data: {
+                                      ...(editModal.data as Record<string, unknown>),
+                                      opponentId: opp.id,
+                                      opponent: opp.name
+                                    }
+                                  })}
+                                >
+                                  <span className="opponent-choice-title">{opp.name}</span>
+                                  <span className="opponent-choice-meta">
+                                    {opp.city || 'Sin ciudad'}
+                                    {opp.category ? ` • ${opp.category}` : ''}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div style={{ fontSize: '0.85rem', color: '#f59e0b' }}>
+                            Registra oponentes primero para elegirlos aquí.
+                          </div>
+                        )}
                       </div>
                       <div className="form-group"><label className="form-label">Fecha</label><input className="input-field" type="date" value={formatToInputDate(editModal.data.eventDate)} onChange={(e) => setEditModal({ ...editModal, data: { ...editModal.data, eventDate: e.target.value } })} required style={{ colorScheme: 'dark' }} /></div>
                       <div className="form-group"><label className="form-label">{t('Hora (Opcional)', config.language)} </label><input className="input-field" type="time" value={editModal.data.time || ''} onChange={(e) => setEditModal({ ...editModal, data: { ...editModal.data, time: e.target.value } })} style={{ colorScheme: 'dark' }} /></div>
