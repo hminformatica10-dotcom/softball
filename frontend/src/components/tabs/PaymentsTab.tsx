@@ -40,6 +40,7 @@ interface PaymentsTabProps {
   games?: Game[];
   formatDate?: (val: string) => string;
   onDeleteBulkPayments?: (paymentIds: string[], password?: string) => Promise<void>;
+  mode?: 'individual' | 'conceptos';
 }
 
 export const PaymentsTab: React.FC<PaymentsTabProps> = ({
@@ -61,7 +62,8 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
   setShowForm,
   games = [],
   formatDate,
-  onDeleteBulkPayments
+  onDeleteBulkPayments,
+  mode = 'individual'
 }) => {
   const [selectedConcept, setSelectedConcept] = useState<PaymentConcept | null>(null);
   const [showNewConceptModal, setShowNewConceptModal] = useState(false);
@@ -90,6 +92,13 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
   const [deleteError, setDeleteError] = useState('');
   const [deletePaymentModal, setDeletePaymentModal] = useState<{ isOpen: boolean, payment: Payment | null, loading: false }>({ isOpen: false, payment: null, loading: false });
 
+  const onCreateConcept = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newConceptData.name || !newConceptData.amount) return;
+    handleConceptSubmit(newConceptData.name, Number(newConceptData.amount));
+    setShowNewConceptModal(false);
+    setNewConceptData({ name: '', amount: '' });
+  };
 
   const renderIndividualForm = () => (
     <>
@@ -553,13 +562,81 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
 
   const renderConceptosDashboard = () => (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', width: '100%', gridColumn: '1 / -1' }}>
-      <button 
-        className="btn-primary" 
-        onClick={() => setShowNewConceptModal(true)}
-        style={{ background: config.primaryColor }}
-      >
-        <PlusCircle size={24} /> {t('Nuevo Concepto Grupal', config.language)}
-      </button>
+      {!showNewConceptModal ? (
+        <button 
+          className="btn-primary" 
+          onClick={() => setShowNewConceptModal(true)}
+          style={{ 
+            background: `linear-gradient(135deg, ${config.primaryColor} 0%, rgba(30, 41, 59, 0.9) 100%)`,
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            borderRadius: '14px',
+            padding: '0.8rem 1.25rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '8px',
+            fontSize: '1.05rem',
+            fontWeight: 'bold',
+            boxShadow: '0 8px 20px rgba(0, 0, 0, 0.3)',
+            cursor: 'pointer'
+          }}
+        >
+          <PlusCircle size={20} /> {t('Nuevo Concepto Grupal', config.language)}
+        </button>
+      ) : (
+        <div className="glass-panel" style={{ 
+          padding: '1.25rem',
+          background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(15, 23, 42, 0.95) 100%)',
+          border: `1px solid rgba(255,255,255,0.08)`,
+          borderRadius: '16px',
+          boxShadow: '0 10px 30px rgba(0, 0, 0, 0.5)',
+          animation: 'fadeIn 0.3s ease-out',
+          marginBottom: '0.5rem'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 'bold', color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <PlusCircle size={18} color={config.primaryColor} /> Nuevo Concepto Grupal
+            </h4>
+            <button className="btn-icon" onClick={() => setShowNewConceptModal(false)} style={{ padding: '4px' }}>
+              <X size={18} />
+            </button>
+          </div>
+          <form onSubmit={onCreateConcept} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem' }}>
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label" style={{ fontSize: '0.8rem', color: '#cbd5e1' }}>Nombre del Concepto</label>
+              <input 
+                type="text" 
+                className="input-field" 
+                placeholder="Ej. Uniforme, Inscripción..." 
+                value={newConceptData.name} 
+                onChange={e => setNewConceptData({...newConceptData, name: e.target.value})} 
+                required 
+                style={{ background: 'rgba(15, 23, 42, 0.6)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '10px' }}
+              />
+            </div>
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label" style={{ fontSize: '0.8rem', color: '#cbd5e1' }}>Monto por Jugador ($)</label>
+              <input 
+                type="number" 
+                className="input-field" 
+                placeholder="0.00" 
+                value={newConceptData.amount} 
+                onChange={e => setNewConceptData({...newConceptData, amount: e.target.value})} 
+                required 
+                style={{ background: 'rgba(15, 23, 42, 0.6)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '10px' }}
+              />
+            </div>
+            <div style={{ gridColumn: '1 / -1', display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+              <button type="button" className="btn-secondary" onClick={() => setShowNewConceptModal(false)} style={{ flex: 1, borderRadius: '10px', fontSize: '0.9rem' }}>
+                Cancelar
+              </button>
+              <button type="submit" className="btn-primary" style={{ flex: 1, background: config.primaryColor, borderRadius: '10px', fontSize: '0.9rem' }}>
+                Crear Concepto
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {loadingConcepts ? (
         <div className="empty-state"><Activity size={48} className="animate-spin" /><h3>Cargando...</h3></div>
@@ -607,27 +684,43 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
 
   const renderConceptDetailView = (concept: PaymentConcept) => {
     const conceptPayments = filteredPayments.filter(p => p.conceptId === concept.id);
-    const sortedPlayers = [...players].sort((a,b) => a.name.localeCompare(b.name));
+    const activePlayers = players.filter(p => p.isActive !== false);
+    const sortedPlayers = [...activePlayers].sort((a, b) => a.name.localeCompare(b.name));
     
     const paidInFullCount = sortedPlayers.filter(pl => {
-      const total = conceptPayments.filter(pay => pay.playerId === pl.id).reduce((s, p) => s + p.amount, 0);
+      const total = conceptPayments
+        .filter(pay => pay.playerId === pl.id && pay.description !== 'Deuda Pendiente')
+        .reduce((s, p) => s + p.amount, 0);
       return total >= concept.totalAmount;
     }).length;
 
     const inProgressCount = sortedPlayers.filter(pl => {
-      const total = conceptPayments.filter(pay => pay.playerId === pl.id).reduce((s, p) => s + p.amount, 0);
+      const total = conceptPayments
+        .filter(pay => pay.playerId === pl.id && pay.description !== 'Deuda Pendiente')
+        .reduce((s, p) => s + p.amount, 0);
       return total > 0 && total < concept.totalAmount;
     }).length;
 
+    const unpaidCount = sortedPlayers.length - paidInFullCount - inProgressCount;
+
+    // Financial Metrics
+    const totalAmountPaid = conceptPayments
+      .filter(p => p.description !== 'Deuda Pendiente')
+      .reduce((sum, pay) => sum + (Number(pay.amount) || 0), 0);
+    const totalGoal = (concept.totalAmount || 0) * sortedPlayers.length;
+    const remainingAmount = Math.max(0, totalGoal - totalAmountPaid);
+
     return (
-      <div className="glass-panel" style={{ width: '100%', gridColumn: '1 / -1' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.25rem' }}>
-          <button className="btn-icon" onClick={() => setSelectedConcept(null)} style={{ background: 'rgba(255,255,255,0.05)' }}>
-            <ArrowLeft size={20} />
-          </button>
+      <div style={{ width: '100%' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', padding: '1rem', background: `${config.primaryColor}15`, borderRadius: '12px', border: `1px solid ${config.primaryColor}40` }}>
           <div>
-            <h2 className="section-title" style={{ margin: 0 }}>{concept.name}</h2>
-            <div style={{ color: '#94a3b8', fontSize: '0.8rem' }}>Meta: {formatCurrency(concept.totalAmount)}</div>
+            <h3 style={{ margin: 0, color: '#f8fafc', fontSize: '1.1rem' }}>{concept.name}</h3>
+            <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.85rem' }}>Meta por persona: {formatCurrency(concept.totalAmount)}</p>
+          </div>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            <button className="btn-secondary" onClick={() => setSelectedConcept(null)} style={{ fontSize: '0.8rem', padding: '0.4rem 0.8rem', whiteSpace: 'nowrap' }}>
+              Cambiar Concepto
+            </button>
           </div>
         </div>
 
@@ -637,153 +730,128 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
         }}>
           <div style={{ textAlign: 'center' }}>
             <div style={{ color: '#22c55e', fontSize: '1.4rem', fontWeight: '800' }}>{paidInFullCount}</div>
-            <div style={{ color: '#94a3b8', fontSize: '0.7rem', fontWeight: '700', textTransform: 'uppercase' }}>Listo</div>
+            <div style={{ color: '#94a3b8', fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase' }}>Listo</div>
           </div>
           <div style={{ textAlign: 'center', borderLeft: '1px solid rgba(255,255,255,0.1)', borderRight: '1px solid rgba(255,255,255,0.1)' }}>
             <div style={{ color: '#f59e0b', fontSize: '1.4rem', fontWeight: '800' }}>{inProgressCount}</div>
-            <div style={{ color: '#94a3b8', fontSize: '0.7rem', fontWeight: '700', textTransform: 'uppercase' }}>Parcial</div>
+            <div style={{ color: '#94a3b8', fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase' }}>Parcial</div>
           </div>
           <div style={{ textAlign: 'center' }}>
-            <div style={{ color: '#ef4444', fontSize: '1.4rem', fontWeight: '800' }}>{sortedPlayers.length - paidInFullCount - inProgressCount}</div>
-            <div style={{ color: '#94a3b8', fontSize: '0.7rem', fontWeight: '700', textTransform: 'uppercase' }}>Falta</div>
+            <div style={{ color: '#ef4444', fontSize: '1.4rem', fontWeight: '800' }}>{unpaidCount}</div>
+            <div style={{ color: '#94a3b8', fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase' }}>Falta</div>
+          </div>
+        </div>
+
+        <div style={{ 
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+          gap: '0.75rem',
+          marginBottom: '1.5rem',
+        }}>
+          <div style={{ padding: '1rem', background: 'rgba(34, 197, 94, 0.1)', border: '1px dashed rgba(34, 197, 94, 0.3)', borderRadius: '16px', textAlign: 'center' }}>
+            <div style={{ fontWeight: '800', color: '#22c55e', fontSize: '1.2rem' }}>{formatCurrency(totalAmountPaid)}</div>
+            <div style={{ fontSize: '0.8rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 'bold', marginTop: '0.5rem' }}>Total Recaudado</div>
+          </div>
+          <div style={{ padding: '1rem', background: 'rgba(239, 68, 68, 0.1)', border: '1px dashed rgba(239, 68, 68, 0.3)', borderRadius: '16px', textAlign: 'center' }}>
+            <div style={{ fontWeight: '800', color: '#ef4444', fontSize: '1.2rem' }}>{formatCurrency(totalGoal)}</div>
+            <div style={{ fontSize: '0.8rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 'bold', marginTop: '0.5rem' }}>Meta de Recaudación</div>
+          </div>
+          <div style={{ padding: '1rem', background: 'rgba(59, 130, 246, 0.1)', border: '1px dashed rgba(59, 130, 246, 0.3)', borderRadius: '16px', textAlign: 'center' }}>
+            <div style={{ fontWeight: '800', color: remainingAmount > 0 ? '#3b82f6' : '#22c55e', fontSize: '1.2rem' }}>{formatCurrency(remainingAmount)}</div>
+            <div style={{ fontSize: '0.8rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 'bold', marginTop: '0.5rem' }}>Restante</div>
           </div>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
           {sortedPlayers.map(player => {
             const playerPayments = conceptPayments.filter(p => p.playerId === player.id);
-            const totalPaid = playerPayments.reduce((s, p) => s + p.amount, 0);
-            const isCompleted = totalPaid >= concept.totalAmount;
-            const hasStarted = totalPaid > 0;
+            const totalPaid = playerPayments
+              .filter(p => p.description !== 'Deuda Pendiente')
+              .reduce((s, p) => s + p.amount, 0);
             
+            const debtPayment = playerPayments.find(p => p.description === 'Deuda Pendiente');
+            const hasDebt = !!debtPayment;
+            
+            const isCompleted = totalPaid >= concept.totalAmount;
+            const hasStarted = totalPaid > 0 && !isCompleted;
+            
+            const status = isCompleted ? 'paid' : hasDebt ? 'debt' : hasStarted ? 'abono' : 'unpaid';
+
             return (
               <div 
                 key={player.id} 
                 className="player-card" 
                 style={{ 
-                  borderLeft: `5px solid ${isCompleted ? '#22c55e' : (hasStarted ? '#f59e0b' : '#ef4444')}`,
+                  borderLeft: `5px solid ${status === 'paid' ? '#22c55e' : status === 'abono' ? '#f59e0b' : '#ef4444'}`,
                   padding: '1rem'
                 }}
               >
                 <div className="flex-responsive" style={{ gap: '0.75rem' }}>
                   <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{ fontWeight: 700, fontSize: '1.05rem', color: '#f8fafc', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{player.name}</div>
-                    <div style={{ fontSize: '0.75rem', color: isCompleted ? '#22c55e' : (hasStarted ? '#f59e0b' : '#94a3b8'), marginTop: '0.1rem', fontWeight: 'bold' }}>
-                      {isCompleted ? (
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><CheckCircle2 size={14} /> Pagado</span>
-                      ) : (
-                        <span>{formatCurrency(totalPaid)} / {formatCurrency(concept.totalAmount)}</span>
-                      )}
+                    <div style={{ fontWeight: 700, fontSize: '1.05rem', color: '#f8fafc', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {player.name} <span style={{ fontSize: '0.8em', color: '#94a3b8', fontWeight: 'normal' }}>#{player.jerseyNumber}</span>
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: status === 'paid' ? '#22c55e' : status === 'abono' ? '#f59e0b' : '#ef4444', marginTop: '0.1rem', fontWeight: 'bold', textTransform: 'uppercase' }}>
+                      {status === 'paid' 
+                        ? `Pagó completo (${formatCurrency(totalPaid)})` 
+                        : status === 'abono' 
+                          ? `Abonó ${formatCurrency(totalPaid)} / ${formatCurrency(concept.totalAmount)}`
+                          : status === 'debt'
+                            ? `Deuda ${formatCurrency(debtPayment?.amount || 0)}`
+                            : 'Falta Cobrar'
+                      }
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.45rem', width: '100%' }}>
-                    {!isCompleted && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-start' }}>
+                    {status === 'unpaid' ? (
                       <>
                         <button
                           type="button"
-                          className="selection-card"
-                          style={{
-                            width: '100%',
-                            cursor: 'pointer',
-                            background: 'linear-gradient(135deg, rgba(34, 197, 94, 0.12), rgba(15, 23, 42, 0.85))',
-                            border: '1px solid rgba(34, 197, 94, 0.25)',
-                            borderRadius: '14px',
-                            padding: '0.6rem 0.7rem',
-                            color: '#ecfdf5',
-                            textAlign: 'left',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.45rem',
-                            boxShadow: '0 8px 18px rgba(34, 197, 94, 0.08)'
-                          }}
+                          className="btn-primary"
+                          style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', flex: 1, minWidth: '70px', background: '#22c55e' }}
                           onClick={() => handleFullGroupPayment(player, concept)}
                           title="Registrar pago completo"
                         >
-                          <CheckCircle2 size={16} color="#4ade80" />
-                          <span style={{ fontSize: '0.78rem', fontWeight: '700' }}>Pago completo</span>
+                          Pagó
                         </button>
                         <button
                           type="button"
-                          className="selection-card"
-                          style={{
-                            width: '100%',
-                            cursor: 'pointer',
-                            background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.12), rgba(15, 23, 42, 0.85))',
-                            border: '1px solid rgba(245, 158, 11, 0.25)',
-                            borderRadius: '14px',
-                            padding: '0.6rem 0.7rem',
-                            color: '#fffbeb',
-                            textAlign: 'left',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.45rem',
-                            boxShadow: '0 8px 18px rgba(245, 158, 11, 0.08)'
-                          }}
+                          className="btn-secondary"
+                          style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', flex: 1, minWidth: '70px' }}
                           onClick={() => openGroupPaymentModal(player, 'Abono', concept)}
                           title="Registrar abono"
                         >
-                          <DollarSign size={16} color="#fbbf24" />
-                          <span style={{ fontSize: '0.78rem', fontWeight: '700' }}>Abonar</span>
+                          Abonar
                         </button>
                         <button
                           type="button"
-                          className="selection-card"
-                          style={{
-                            width: '100%',
-                            cursor: 'pointer',
-                            background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.12), rgba(15, 23, 42, 0.85))',
-                            border: '1px solid rgba(239, 68, 68, 0.25)',
-                            borderRadius: '14px',
-                            padding: '0.6rem 0.7rem',
-                            color: '#fff1f2',
-                            textAlign: 'left',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.45rem',
-                            boxShadow: '0 8px 18px rgba(239, 68, 68, 0.08)'
-                          }}
+                          className="btn-secondary"
+                          style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', border: '1px solid #ef4444', color: '#ef4444', background: 'transparent', flex: 1, minWidth: '70px' }}
                           onClick={() => openGroupPaymentModal(player, 'Deuda', concept)}
-                          title="Registrar deuda pendiente"
+                          title="Registrar deuda"
                         >
-                          <AlertCircle size={16} color="#fca5a5" />
-                          <span style={{ fontSize: '0.78rem', fontWeight: '700' }}>Deuda</span>
+                          Deuda
                         </button>
                       </>
+                    ) : (
+                      <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                        <button 
+                          type="button"
+                          className="btn-icon" 
+                          onClick={() => {
+                            const lastPayment = playerPayments[playerPayments.length - 1];
+                            if (lastPayment) setDeletePaymentModal({ isOpen: true, payment: lastPayment, loading: false });
+                          }} 
+                          style={{ color: '#ef4444', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                          title="Eliminar registro"
+                        >
+                          <Trash2 size={20} />
+                        </button>
+                      </div>
                     )}
-                    {hasStarted && (
-                      <button 
-                        className="btn-secondary" 
-                        style={{ 
-                          fontSize: '0.75rem', padding: '0.4rem 0.6rem', minWidth: '70px', 
-                          borderColor: `${config.primaryColor}50`, 
-                          color: config.primaryColor 
-                        }}
-                        onClick={() => {
-                          const pToEdit = playerPayments[0];
-                          if (openEditModal && pToEdit) openEditModal('payment', pToEdit);
-                        }}
-                        title="Editar pago"
-                      >
-                        <Edit2 size={14} style={{ marginRight: '4px' }} /> Editar
-                      </button>
-                    )}
-                    {isCompleted && <CheckCircle2 size={20} color="#22c55e" />}
-                  </div>
                   </div>
                 </div>
-                
-                {!isCompleted && (
-                  <div style={{ marginTop: '0.75rem', background: 'rgba(255,255,255,0.05)', borderRadius: '4px', height: '4px', overflow: 'hidden' }}>
-                    <div style={{ 
-                      width: `${Math.min(100, (totalPaid / concept.totalAmount) * 100)}%`, 
-                      background: hasStarted ? '#f59e0b' : '#ef4444', 
-                      height: '100%', 
-                      transition: 'width 0.5s ease' 
-                    }} />
-                  </div>
-                )}
               </div>
             );
           })}
@@ -811,7 +879,7 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
     const payload: Partial<PaymentFormData> = {
       playerId: player.id,
       amount: String(amount),
-      description: 'Pago de Play',
+      description: 'Pago',
       notes: `Pago completo de ${concept.name}`,
       responsible: '',
       eventDate: new Date().toISOString().split('T')[0],
@@ -826,7 +894,7 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
     if (!groupPaymentModal.player || !groupPaymentModal.amount) return;
 
     const description = groupPaymentModal.type === 'Pago'
-      ? 'Pago de Play'
+      ? 'Pago'
       : groupPaymentModal.type === 'Deuda'
         ? 'Deuda Pendiente'
         : 'Abono';
@@ -853,46 +921,15 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
 
   return (
     <div className="grid-layout">
-      {renderIndividualView()}
+      {mode === 'individual' ? (
+        renderIndividualView()
+      ) : (
+        <div className="glass-panel" style={{ width: '100%', gridColumn: '1 / -1' }}>
+          <h2 className="section-title">
+            <Layers size={24} color={config.primaryColor} /> {t('Pagos Grupales', config.language)}
+          </h2>
+          {selectedConcept ? renderConceptDetailView(selectedConcept) : renderConceptosDashboard()}
 
-      {showNewConceptModal && (
-            <div className="modal-overlay" style={{ zIndex: 1100 }}>
-              <div className="modal-content" style={{ maxWidth: '420px' }}>
-                <div className="modal-header">
-                  <h3 className="modal-title">Nuevo Concepto Grupal</h3>
-                  <button className="btn-icon" onClick={() => setShowNewConceptModal(false)}><X size={24} /></button>
-                </div>
-                <form onSubmit={onCreateConcept} className="modal-body">
-                  <div className="form-group">
-                    <label className="form-label">Nombre del Concepto</label>
-                    <input 
-                      type="text" 
-                      className="input-field" 
-                      placeholder="Ej. Uniforme, Inscripción..." 
-                      value={newConceptData.name} 
-                      onChange={e => setNewConceptData({...newConceptData, name: e.target.value})} 
-                      required 
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Monto por Jugador ($)</label>
-                    <input 
-                      type="number" 
-                      className="input-field" 
-                      placeholder="0.00" 
-                      value={newConceptData.amount} 
-                      onChange={e => setNewConceptData({...newConceptData, amount: e.target.value})} 
-                      required 
-                    />
-                  </div>
-                  <div className="modal-footer" style={{ marginTop: '1rem' }}>
-                    <button type="button" className="btn-secondary" onClick={() => setShowNewConceptModal(false)}>Cancelar</button>
-                    <button type="submit" className="btn-primary" style={{ background: config.primaryColor }}>Crear Concepto</button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          )}
           {groupPaymentModal.isOpen && selectedConcept && (
             <div className="modal-overlay" style={{ zIndex: 1200 }}>
               <div className="modal-content" style={{ maxWidth: '420px' }}>
@@ -959,6 +996,7 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
               </div>
             </div>
           )}
+        </div>
       )}
 
       {/* Delete by Date Modal */}

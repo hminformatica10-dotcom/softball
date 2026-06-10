@@ -5,7 +5,7 @@ import { App as CapApp } from '@capacitor/app';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { Capacitor } from '@capacitor/core';
 import { jwtDecode } from 'jwt-decode';
-import { Users, User, TrendingUp, Sliders, Trash2, Activity, Home, DollarSign, CreditCard, BarChart2, PlusCircle, Edit2, AlertCircle, Search, Settings, Calendar, ClipboardCheck, Menu, X, Wifi, WifiOff, Lock, ShieldCheck, Eye, EyeOff, RefreshCw, FileText, Shield } from 'lucide-react';
+import { Users, User, TrendingUp, Sliders, Trash2, Activity, Home, DollarSign, CreditCard, BarChart2, PlusCircle, Edit2, AlertCircle, Search, Settings, Calendar, ClipboardCheck, Menu, X, Wifi, WifiOff, Lock, ShieldCheck, Eye, EyeOff, RefreshCw, FileText, Shield, Layers } from 'lucide-react';
 import { DashboardTab } from './components/tabs/DashboardTab';
 
 type Team = AppConfig & {
@@ -2747,6 +2747,7 @@ function App() {
     { id: 'Juegos', title: t('Juegos', config.language), icon: Calendar },
     { id: 'Asistencia', title: t('Asistencia', config.language), icon: ClipboardCheck },
     { id: 'Pagos', title: t('Pagos', config.language), icon: DollarSign },
+    { id: 'PagosGrupales', title: t('Pagos Grupales', config.language), icon: Layers },
     { id: 'Gastos', title: t('Gastos', config.language), icon: CreditCard },
     { id: 'Morosidad', title: t('Pendientes de Cobro', config.language), icon: AlertCircle },
     { id: 'Reportes', title: t('Reportes', config.language), icon: BarChart2 },
@@ -2845,6 +2846,32 @@ function App() {
             games={games}
             formatDate={formatDate}
             onDeleteBulkPayments={handleDeleteBulkPayments}
+            mode="individual"
+          />
+        );
+      case 'PagosGrupales':
+        return (
+          <PaymentsTab
+            config={config}
+            paymentFormData={paymentFormData}
+            setPaymentFormData={setPaymentFormData}
+            handlePaymentSubmit={handlePaymentSubmit}
+            handlePaymentPayloadSubmit={handlePaymentPayloadSubmit}
+            players={players}
+            filteredPayments={filteredPayments}
+            groupConcepts={paymentConcepts}
+            loadingConcepts={loadingConcepts}
+            handleConceptSubmit={handleConceptSubmit}
+            deleteConcept={deleteConcept}
+            formatCurrency={formatCurrency}
+            openEditModal={openEditModal}
+            onDeletePayment={handleDeletePayment}
+            showForm={showPaymentForm}
+            setShowForm={setShowPaymentForm}
+            games={games}
+            formatDate={formatDate}
+            onDeleteBulkPayments={handleDeleteBulkPayments}
+            mode="conceptos"
           />
         );
       case 'Asistencia':
@@ -2997,7 +3024,7 @@ function App() {
           })}
 
           <div style={{ padding: '1rem 1rem 0.25rem', fontSize: '0.75rem', fontWeight: '800', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '1px' }}>Finanzas & Admin</div>
-          {navItems.filter(i => ['Asistencia', 'Pagos', 'Gastos', 'Morosidad', 'Reportes', 'Notas'].includes(i.id)).map((item) => {
+          {navItems.filter(i => ['Asistencia', 'Pagos', 'PagosGrupales', 'Gastos', 'Morosidad', 'Reportes', 'Notas'].includes(i.id)).map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
             return (
