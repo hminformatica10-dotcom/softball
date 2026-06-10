@@ -652,7 +652,6 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
             const selectedGame = games.find(g => g.id === paymentControlGameId);
             if (!selectedGame) return null;
             const gameDateStr = formatDate(selectedGame.eventDate || selectedGame.date || '');
-            const expectedNotesFragment1 = `Vs ${selectedGame.opponent}`;
             const paidDescriptions = ['Pago de Play', 'Pago Triangular', 'Pago Cuadrangular', 'Pago Torneo'];
             const attendanceDescriptions = [...paidDescriptions, 'Ausente', 'Deuda Pendiente'];
 

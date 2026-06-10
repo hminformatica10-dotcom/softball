@@ -7,6 +7,9 @@ export default defineConfig({
     host: true, // Exposes the server to the local network (0.0.0.0)
     port: 5173
   },
+  build: {
+    chunkSizeWarningLimit: 2000,
+  },
   plugins: [
     react(),
     VitePWA({

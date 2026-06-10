@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { DollarSign, Activity, Trash2, PlusCircle, LayoutGrid, User, Layers, ArrowLeft, CheckCircle2, Edit2, X, Search, Calendar, ChevronDown, AlertCircle } from 'lucide-react';
+import { DollarSign, Activity, Trash2, PlusCircle, User, Layers, Edit2, X, Search, Calendar, ChevronDown } from 'lucide-react';
 import { t } from '../../translations';
 import type { Player, Payment, AppConfig, PaymentConcept, Game } from '../../types';
 
@@ -48,6 +48,7 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
   paymentFormData,
   setPaymentFormData,
   handlePaymentSubmit,
+  handlePaymentPayloadSubmit,
   players,
   filteredPayments,
   formatCurrency,
@@ -861,11 +862,17 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
   };
 
   const openGroupPaymentModal = (player: Player, type: 'Pago' | 'Abono' | 'Deuda', concept?: PaymentConcept) => {
+    const conceptPayments = concept ? filteredPayments.filter(p => p.conceptId === concept.id && p.playerId === player.id) : [];
+    const paidSoFar = conceptPayments
+      .filter(p => p.description !== 'Deuda Pendiente')
+      .reduce((sum, payment) => sum + (Number(payment.amount) || 0), 0);
+    const remainingToPay = Math.max(0, (concept?.totalAmount || 0) - paidSoFar);
+
     setGroupPaymentModal({
       isOpen: true,
       player,
       type,
-      amount: concept ? String(concept.totalAmount || '') : '',
+      amount: String(type === 'Deuda' || type === 'Abono' ? remainingToPay || concept?.totalAmount || '' : concept?.totalAmount || ''),
       notes: '',
       responsible: '',
       eventDate: new Date().toISOString().split('T')[0]
@@ -931,66 +938,67 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
           {selectedConcept ? renderConceptDetailView(selectedConcept) : renderConceptosDashboard()}
 
           {groupPaymentModal.isOpen && selectedConcept && (
-            <div className="modal-overlay" style={{ zIndex: 1200 }}>
-              <div className="modal-content" style={{ maxWidth: '420px' }}>
-                <div className="modal-header">
-                  <h3 className="modal-title">{groupPaymentModal.type === 'Pago' ? 'Registrar Pago' : groupPaymentModal.type === 'Deuda' ? 'Registrar Deuda' : 'Registrar Abono'}</h3>
-                  <button className="btn-icon" onClick={() => setGroupPaymentModal({ isOpen: false, player: null, type: '', amount: '', notes: '', responsible: '', eventDate: new Date().toISOString().split('T')[0] })}><X size={24} /></button>
+            <div className="modal-overlay" style={{ zIndex: 1200, padding: '1rem' }}>
+              <div className="modal-content" style={{ width: '100%', maxWidth: '440px', maxHeight: 'calc(100vh - 2rem)', overflowY: 'auto', border: '1px solid rgba(148, 163, 184, 0.18)', background: 'linear-gradient(180deg, rgba(15, 23, 42, 0.98) 0%, rgba(15, 23, 42, 0.96) 100%)', boxShadow: '0 24px 60px rgba(15, 23, 42, 0.55)', borderRadius: '18px' }}>
+                <div className="modal-header" style={{ paddingBottom: '0.75rem', borderBottom: '1px solid rgba(148, 163, 184, 0.12)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.75rem' }}>
+                  <div>
+                    <div style={{ color: '#38bdf8', fontSize: '0.78rem', textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 700, marginBottom: '0.25rem' }}>Pagos grupales</div>
+                    <h3 className="modal-title" style={{ margin: 0, fontSize: '1.05rem' }}>{groupPaymentModal.type === 'Pago' ? 'Registrar Pago' : groupPaymentModal.type === 'Deuda' ? 'Registrar Deuda' : 'Registrar Abono'}</h3>
+                  </div>
+                  <button className="btn-icon" onClick={() => setGroupPaymentModal({ isOpen: false, player: null, type: '', amount: '', notes: '', responsible: '', eventDate: new Date().toISOString().split('T')[0] })} style={{ color: '#cbd5e1', background: 'rgba(148, 163, 184, 0.08)' }}><X size={20} /></button>
                 </div>
-                <form onSubmit={(e) => handleGroupPaymentSubmit(e, selectedConcept)} className="modal-body">
-                  <div className="form-group">
-                    <label className="form-label">Jugador</label>
-                    <input type="text" className="input-field" value={groupPaymentModal.player?.name || ''} readOnly />
+                <form onSubmit={(e) => handleGroupPaymentSubmit(e, selectedConcept)} className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem', paddingTop: '1rem' }}>
+                  <div style={{ padding: '0.9rem', borderRadius: '14px', background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.95) 100%)', border: '1px solid rgba(56, 189, 248, 0.16)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)' }}>
+                    <div style={{ color: '#7dd3fc', fontSize: '0.78rem', textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 700, marginBottom: '0.35rem' }}>Resumen</div>
+                    <div style={{ color: '#f8fafc', fontSize: '1rem', fontWeight: 700 }}>{groupPaymentModal.player?.name || 'Jugador'}</div>
+                    <div style={{ color: '#cbd5e1', fontSize: '0.92rem', marginTop: '0.1rem' }}>{selectedConcept.name}</div>
+                    <div style={{ color: '#86efac', fontSize: '0.84rem', marginTop: '0.35rem' }}>Se registrará como ingreso del concepto seleccionado.</div>
                   </div>
-                  <div className="form-group">
-                    <label className="form-label">Concepto</label>
-                    <input type="text" className="input-field" value={selectedConcept.name} readOnly />
+                  {groupPaymentModal.type === 'Deuda' && selectedConcept && (() => {
+                    const playerPayments = filteredPayments.filter(p => p.conceptId === selectedConcept.id && p.playerId === groupPaymentModal.player?.id);
+                    const paidSoFar = playerPayments
+                      .filter(p => p.description !== 'Deuda Pendiente')
+                      .reduce((sum, payment) => sum + (Number(payment.amount) || 0), 0);
+                    const remainingToPay = Math.max(0, (selectedConcept.totalAmount || 0) - paidSoFar);
+
+                    return (
+                      <div className="form-group" style={{ marginBottom: '0.75rem', padding: '0.75rem', borderRadius: '10px', background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.25)' }}>
+                        <label className="form-label" style={{ color: '#fca5a5', marginBottom: '0.15rem' }}>Saldo pendiente del jugador</label>
+                        <div style={{ color: '#fecaca', fontWeight: 700, fontSize: '0.95rem' }}>
+                          Le falta por pagar: {formatCurrency(remainingToPay)}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '0.75rem' }}>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ color: '#e2e8f0', fontSize: '0.82rem', fontWeight: 700 }}>Cantidad</label>
+                      <input
+                        type="number"
+                        className="input-field"
+                        placeholder="0.00"
+                        value={groupPaymentModal.amount}
+                        onChange={e => setGroupPaymentModal(prev => ({ ...prev, amount: e.target.value }))}
+                        required
+                        style={{ background: 'rgba(15, 23, 42, 0.65)', border: '1px solid rgba(148, 163, 184, 0.18)', borderRadius: '12px', padding: '0.75rem 0.85rem', fontSize: '0.95rem' }}
+                      />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ color: '#e2e8f0', fontSize: '0.82rem', fontWeight: 700 }}>Fecha</label>
+                      <input
+                        type="date"
+                        className="input-field"
+                        value={groupPaymentModal.eventDate}
+                        onChange={e => setGroupPaymentModal(prev => ({ ...prev, eventDate: e.target.value }))}
+                        required
+                        style={{ colorScheme: 'dark', background: 'rgba(15, 23, 42, 0.65)', border: '1px solid rgba(148, 163, 184, 0.18)', borderRadius: '12px', padding: '0.75rem 0.85rem', fontSize: '0.95rem' }}
+                      />
+                    </div>
                   </div>
-                  <div className="form-group">
-                    <label className="form-label">Monto ($)</label>
-                    <input
-                      type="number"
-                      className="input-field"
-                      placeholder="0.00"
-                      value={groupPaymentModal.amount}
-                      onChange={e => setGroupPaymentModal(prev => ({ ...prev, amount: e.target.value }))}
-                      required
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Fecha</label>
-                    <input
-                      type="date"
-                      className="input-field"
-                      value={groupPaymentModal.eventDate}
-                      onChange={e => setGroupPaymentModal(prev => ({ ...prev, eventDate: e.target.value }))}
-                      required
-                      style={{ colorScheme: 'dark' }}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Responsable</label>
-                    <input
-                      type="text"
-                      className="input-field"
-                      placeholder="Ej. Juan Perez"
-                      value={groupPaymentModal.responsible}
-                      onChange={e => setGroupPaymentModal(prev => ({ ...prev, responsible: e.target.value }))}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Notas</label>
-                    <input
-                      type="text"
-                      className="input-field"
-                      placeholder="Detalle opcional"
-                      value={groupPaymentModal.notes}
-                      onChange={e => setGroupPaymentModal(prev => ({ ...prev, notes: e.target.value }))}
-                    />
-                  </div>
-                  <div className="modal-footer" style={{ marginTop: '1rem' }}>
-                    <button type="button" className="btn-secondary" onClick={() => setGroupPaymentModal({ isOpen: false, player: null, type: '', amount: '', notes: '', responsible: '', eventDate: new Date().toISOString().split('T')[0] })}>Cancelar</button>
-                    <button type="submit" className="btn-primary" style={{ background: config.primaryColor }}>{groupPaymentModal.type === 'Pago' ? 'Registrar Pago' : groupPaymentModal.type === 'Deuda' ? 'Registrar Deuda' : 'Registrar Abono'}</button>
+                  <div className="modal-footer" style={{ marginTop: '0.25rem', display: 'flex', gap: '0.6rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                    <button type="button" className="btn-secondary" style={{ borderRadius: '12px', padding: '0.65rem 0.9rem' }} onClick={() => setGroupPaymentModal({ isOpen: false, player: null, type: '', amount: '', notes: '', responsible: '', eventDate: new Date().toISOString().split('T')[0] })}>Cancelar</button>
+                    <button type="submit" className="btn-primary" style={{ borderRadius: '12px', padding: '0.65rem 0.9rem', background: `linear-gradient(135deg, ${config.primaryColor} 0%, #2563eb 100%)`, boxShadow: '0 10px 20px rgba(37, 99, 235, 0.25)' }}>{groupPaymentModal.type === 'Pago' ? 'Registrar Pago' : groupPaymentModal.type === 'Deuda' ? 'Registrar Deuda' : 'Registrar Abono'}</button>
                   </div>
                 </form>
               </div>

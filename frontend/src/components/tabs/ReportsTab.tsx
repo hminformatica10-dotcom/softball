@@ -98,12 +98,16 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
     setActiveChart(chartView);
   }, [chartView]);
 
-  const filteredReportPayments = reportType === 'Gastos' ? [] : payments.filter(p => {
-    const matchSearch = p.playerName.toLowerCase().includes(reportSearch.toLowerCase()) || 
-                       p.description.toLowerCase().includes(reportSearch.toLowerCase());
-    const matchPlayer = !reportPlayerFilter || p.playerId === reportPlayerFilter;
-    return matchSearch && matchPlayer && isDateInRange(p.eventDate || p.date || '');
-  });
+  const filteredReportPayments = React.useMemo(() => {
+    if (reportType === 'Gastos') return [];
+
+    return payments.filter(p => {
+      const matchSearch = p.playerName.toLowerCase().includes(reportSearch.toLowerCase()) ||
+                         p.description.toLowerCase().includes(reportSearch.toLowerCase());
+      const matchPlayer = !reportPlayerFilter || p.playerId === reportPlayerFilter;
+      return matchSearch && matchPlayer && isDateInRange(p.eventDate || p.date || '');
+    });
+  }, [payments, reportPlayerFilter, reportSearch, reportType, isDateInRange]);
 
   const synthesizedGameExpenses = React.useMemo(() => {
     return (games || [])
@@ -169,6 +173,36 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
   }, {} as Record<string, number>);
   
   const incomeData = Object.keys(incomeByConcept).map(key => ({ name: key, value: incomeByConcept[key] })).filter(item => item.value > 0);
+
+  const sortPaymentsByPlayer = <T extends { playerName?: string; eventDate?: string; amount?: number }>(items: T[]) => {
+    return [...items].sort((a, b) => {
+      const playerA = (a.playerName || '').trim().toLowerCase();
+      const playerB = (b.playerName || '').trim().toLowerCase();
+      const nameCompare = playerA.localeCompare(playerB, 'es', { sensitivity: 'base' });
+      if (nameCompare !== 0) return nameCompare;
+      return (a.eventDate || '').localeCompare(b.eventDate || '');
+    });
+  };
+
+  const groupedPaymentSections = React.useMemo(() => {
+    const grouped = filteredReportPayments.reduce((acc, tx) => {
+      if (!tx.conceptId) return acc;
+      const key = tx.conceptId;
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(tx);
+      return acc;
+    }, {} as Record<string, typeof filteredReportPayments>);
+
+    return Object.entries(grouped).map(([conceptId, payments]) => {
+      const concept = groupConcepts.find(c => c.id === conceptId || c._id === conceptId);
+      return {
+        id: conceptId,
+        title: concept?.name || 'Pago Grupal',
+        payments,
+        total: payments.reduce((sum, tx) => sum + tx.amount, 0)
+      };
+    });
+  }, [filteredReportPayments, groupConcepts]);
 
   const expensesByCategory = filteredReportExpenses.reduce((acc, curr) => {
     const cat = curr.category;
@@ -382,8 +416,8 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
         // Build combined game transaction list (payments and ground expense)
         const gameRows: any[] = [];
         
-        // Add payments
-        group.payments.forEach(p => {
+        // Add payments (ordered alphabetically by player)
+        sortPaymentsByPlayer(group.payments).forEach(p => {
           if (p.description === 'Deuda Pendiente') return;
           gameRows.push([
             formatDate(p.eventDate || ''),
@@ -414,7 +448,44 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
       }
     }
 
-    // 2. Render Other/General Payments Section
+    // 2. Render Grouped Payment Sections
+    if (groupedPaymentSections.length > 0) {
+      if (currentY > 240) { doc.addPage(); currentY = 20; }
+
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(13);
+      doc.setFont("helvetica", "bold");
+      doc.text("Pagos Grupales", 15, currentY);
+      currentY += 8;
+
+      for (const section of groupedPaymentSections) {
+        if (currentY > 240) { doc.addPage(); currentY = 20; }
+
+        doc.setTextColor(teamColor[0], teamColor[1], teamColor[2]);
+        doc.setFontSize(11);
+        doc.setFont("helvetica", "bold");
+        doc.text(`${section.title} (${section.payments.length} registro(s))`, 18, currentY);
+        currentY += 5;
+
+        autoTable(doc, {
+          startY: currentY,
+          head: [["Fecha", "Jugador", "Detalle", "Monto"]],
+          body: sortPaymentsByPlayer(section.payments).map(tx => [formatDate(tx.eventDate || tx.date || ''), tx.playerName, tx.description, formatCurrency(tx.amount)]),
+          headStyles: { fillColor: [34, 197, 94], textColor: [255, 255, 255], fontStyle: 'bold' },
+          alternateRowStyles: { fillColor: [250, 250, 250] },
+          margin: { left: 15, right: 15 }
+        });
+
+        currentY = (doc as any).lastAutoTable.finalY + 4;
+        doc.setTextColor(50, 50, 50);
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "bold");
+        doc.text(`Subtotal ${section.title}: ${formatCurrency(section.total)}`, 18, currentY);
+        currentY += 10;
+      }
+    }
+
+    // 3. Render Other/General Payments Section
     const incomesNotGame = otherPayments.filter(t => t.description !== 'Deuda Pendiente');
     if (incomesNotGame.length > 0) {
       if (currentY > 240) { doc.addPage(); currentY = 20; }
@@ -437,7 +508,7 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
       }, {} as Record<string, typeof incomesNotGame>);
 
       for (const conceptKey of Object.keys(incomesGroupedByConcept)) {
-        const groupPayments = incomesGroupedByConcept[conceptKey];
+        const groupPayments = sortPaymentsByPlayer(incomesGroupedByConcept[conceptKey]);
         const subtotal = groupPayments.reduce((sum, tx) => sum + tx.amount, 0);
 
         if (currentY > 240) { doc.addPage(); currentY = 20; }
@@ -688,8 +759,8 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
           aoaData.push([`Partido: Vs ${group.game.opponent} (${group.gameDateStr})`]);
           aoaData.push(["Fecha", "Concepto / Jugador", "Detalle", "Tipo", "Monto"]);
           
-          // Add payments
-          group.payments.forEach(p => {
+          // Add payments (ordered alphabetically by player)
+          sortPaymentsByPlayer(group.payments).forEach(p => {
             if (p.description === 'Deuda Pendiente') return;
             aoaData.push([
               formatDate(p.eventDate || ''),
@@ -713,6 +784,26 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
         }
       }
 
+      // Pagos Grupales (section per grouped payment concept)
+      if (groupedPaymentSections.length > 0) {
+        aoaData.push(["PAGOS GRUPALES"]);
+        for (const section of groupedPaymentSections) {
+          aoaData.push([section.title]);
+          aoaData.push(["Fecha", "Jugador", "Detalle", "Tipo", "Monto"]);
+          sortPaymentsByPlayer(section.payments).forEach(tx => {
+            aoaData.push([
+              formatDate(tx.eventDate || tx.date || ''),
+              tx.playerName,
+              tx.description,
+              "Ingreso grupal",
+              tx.amount
+            ]);
+          });
+          aoaData.push(["", "Subtotal", section.title, "", section.total]);
+          aoaData.push([]);
+        }
+      }
+
       // General Incomes (not associated to games)
       const incomesNotGame = otherPayments.filter(t => t.description !== 'Deuda Pendiente');
       if (incomesNotGame.length > 0) {
@@ -729,7 +820,7 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
         }, {} as Record<string, typeof incomesNotGame>);
 
         for (const conceptKey of Object.keys(incomesGroupedByConcept)) {
-          const groupPayments = incomesGroupedByConcept[conceptKey];
+          const groupPayments = sortPaymentsByPlayer(incomesGroupedByConcept[conceptKey]);
           const subtotal = groupPayments.reduce((sum, tx) => sum + tx.amount, 0);
           aoaData.push([conceptKey]);
           aoaData.push(["Fecha", "Jugador", "Concepto", "Tipo", "Monto"]);
@@ -787,7 +878,7 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
         aoaData.push([`DEUDAS PENDIENTES POR COBRAR (${debts.length})`]);
         aoaData.push(["Fecha", "Jugador", "Referencia", "Tipo", "Monto"]);
         
-        debts.forEach(tx => {
+        sortPaymentsByPlayer(debts).forEach(tx => {
           aoaData.push([
             formatDate(tx.eventDate),
             tx.playerName,

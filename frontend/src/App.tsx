@@ -48,7 +48,6 @@ import { GamesTab } from './components/tabs/GamesTab';
 import { PaymentsTab } from './components/tabs/PaymentsTab';
 import { ExpensesTab } from './components/tabs/ExpensesTab';
 import { AttendanceTab } from './components/tabs/AttendanceTab';
-import { DebtsTab } from './components/tabs/DebtsTab';
 import { ReportsTab } from './components/tabs/ReportsTab';
 import { NotesTab } from './components/tabs/NotesTab';
 import { OpponentsTab } from './components/tabs/OpponentsTab';
@@ -268,7 +267,7 @@ function App() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [loadingPlayers, setLoadingPlayers] = useState(true);
   const [opponents, setOpponents] = useState<Opponent[]>([]);
-  const [loadingOpponents, setLoadingOpponents] = useState(true);
+  const [, setLoadingOpponents] = useState(true);
 
   const [payments, setPayments] = useState<Payment[]>([]);
 
@@ -1313,7 +1312,7 @@ function App() {
         try {
           const errObj = JSON.parse(errorText);
           if (errObj && errObj.error) errorMsg = errObj.error;
-        } catch (_) {
+        } catch {
           if (errorText) errorMsg = errorText;
         }
         successCallback(false, errorMsg);
@@ -2749,7 +2748,6 @@ function App() {
     { id: 'Pagos', title: t('Pagos', config.language), icon: DollarSign },
     { id: 'PagosGrupales', title: t('Pagos Grupales', config.language), icon: Layers },
     { id: 'Gastos', title: t('Gastos', config.language), icon: CreditCard },
-    { id: 'Morosidad', title: t('Pendientes de Cobro', config.language), icon: AlertCircle },
     { id: 'Reportes', title: t('Reportes', config.language), icon: BarChart2 },
     { id: 'Notas', title: t('Notas', config.language), icon: FileText }
   ];
@@ -2898,23 +2896,6 @@ function App() {
             confirmDelete={confirmDelete}
           />
         );
-      case 'Morosidad':
-        return (
-          <DebtsTab
-            config={config}
-            payments={payments}
-            setPayments={setPayments}
-            players={players}
-            games={games}
-            activeTeamId={activeTeamId}
-            PAYMENT_API_URL={PAYMENT_API_URL}
-            saveToQueueAndStorage={saveToQueueAndStorage}
-            getAuthHeaders={getAuthHeaders}
-            formatCurrency={formatCurrency}
-            formatDate={formatDate}
-            normalizeDate={normalizeDate}
-          />
-        );
       case 'Reportes':
         return (
           <ReportsTab
@@ -3024,7 +3005,7 @@ function App() {
           })}
 
           <div style={{ padding: '1rem 1rem 0.25rem', fontSize: '0.75rem', fontWeight: '800', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '1px' }}>Finanzas & Admin</div>
-          {navItems.filter(i => ['Asistencia', 'Pagos', 'PagosGrupales', 'Gastos', 'Morosidad', 'Reportes', 'Notas'].includes(i.id)).map((item) => {
+          {navItems.filter(i => ['Asistencia', 'Pagos', 'PagosGrupales', 'Gastos', 'Reportes', 'Notas'].includes(i.id)).map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
             return (

@@ -52,8 +52,8 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
     },
     {
       id: 'Reportes',
-      title: 'Reportes',
-      subtitle: `Balance ${formatCurrency(balance)}`,
+      title: 'Balance',
+      subtitle: `Saldo ${formatCurrency(balance)}`,
       Icon: BarChart2,
       color: '#a855f7'
     }

@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { Shield, Plus, Search, MapPin, Tag, User, Phone, FileText, Edit2, Trash2, X, Check, Activity } from 'lucide-react';
-import { t } from '../../translations';
+import { Shield, Plus, Search, MapPin, Tag, User, Phone, FileText, Edit2, Trash2, Check } from 'lucide-react';
 import type { Opponent, AppConfig } from '../../types';
 
 interface OpponentsTabProps {
