@@ -769,6 +769,7 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
             const totalPaid = playerPayments
               .filter(p => p.description !== 'Deuda Pendiente')
               .reduce((s, p) => s + p.amount, 0);
+            const remainingToPay = Math.max(0, (concept.totalAmount || 0) - totalPaid);
             
             const debtPayment = playerPayments.find(p => p.description === 'Deuda Pendiente');
             const hasDebt = !!debtPayment;
@@ -805,7 +806,7 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-start' }}>
-                    {status === 'unpaid' ? (
+                    {!isCompleted ? (
                       <>
                         <button
                           type="button"
@@ -828,11 +829,22 @@ export const PaymentsTab: React.FC<PaymentsTabProps> = ({
                         <button
                           type="button"
                           className="btn-secondary"
-                          style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', border: '1px solid #ef4444', color: '#ef4444', background: 'transparent', flex: 1, minWidth: '70px' }}
+                          disabled={remainingToPay === 0}
+                          style={{
+                            padding: '0.4rem 0.8rem',
+                            fontSize: '0.8rem',
+                            border: '1px solid #ef4444',
+                            color: remainingToPay === 0 ? '#64748b' : '#ef4444',
+                            background: remainingToPay === 0 ? 'rgba(148, 163, 184, 0.08)' : 'transparent',
+                            flex: 1,
+                            minWidth: '90px',
+                            cursor: remainingToPay === 0 ? 'not-allowed' : 'pointer',
+                            opacity: remainingToPay === 0 ? 0.65 : 1
+                          }}
                           onClick={() => openGroupPaymentModal(player, 'Deuda', concept)}
-                          title="Registrar deuda"
+                          title={remainingToPay === 0 ? 'Deuda saldada' : `Registrar deuda por ${formatCurrency(remainingToPay)}`}
                         >
-                          Deuda
+                          {remainingToPay === 0 ? 'Deuda saldada' : `Deuda ${formatCurrency(remainingToPay)}`}
                         </button>
                       </>
                     ) : (

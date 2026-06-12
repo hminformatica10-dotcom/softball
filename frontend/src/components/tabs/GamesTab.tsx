@@ -40,6 +40,14 @@ export const GamesTab: React.FC<GamesTabProps> = ({
   setShowForm,
   opponents
 }) => {
+  const [showAllOpponents, setShowAllOpponents] = React.useState(false);
+  const selectedOpponent = opponents.find(opp => opp.id === gameFormData.opponentId);
+  const visibleOpponents = selectedOpponent && !showAllOpponents
+    ? [selectedOpponent]
+    : showAllOpponents
+      ? opponents
+      : opponents.slice(-3);
+
   return (
     <div className="grid-layout">
       {showForm && (
@@ -50,18 +58,21 @@ export const GamesTab: React.FC<GamesTabProps> = ({
               <label className="form-label">{t('Oponente / Vs', config.language)} *</label>
               {opponents.length > 0 ? (
                 <div className="opponent-selector">
-                  {opponents.map(opp => {
+                  {visibleOpponents.map(opp => {
                     const selected = gameFormData.opponentId === opp.id;
                     return (
                       <button
                         key={opp.id}
                         type="button"
                         className={`opponent-choice ${selected ? 'active' : ''}`}
-                        onClick={() => setGameFormData({
-                          ...gameFormData,
-                          opponentId: opp.id,
-                          opponent: opp.name
-                        })}
+                        onClick={() => {
+                          setGameFormData({
+                            ...gameFormData,
+                            opponentId: opp.id,
+                            opponent: opp.name
+                          });
+                          setShowAllOpponents(false);
+                        }}
                       >
                         <span className="opponent-choice-title">{opp.name}</span>
                         <span className="opponent-choice-meta">
@@ -71,6 +82,36 @@ export const GamesTab: React.FC<GamesTabProps> = ({
                       </button>
                     );
                   })}
+                  {opponents.length > 3 && !showAllOpponents && !selectedOpponent && (
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={() => setShowAllOpponents(true)}
+                      style={{ width: '100%', marginTop: '0.5rem', borderRadius: '10px' }}
+                    >
+                      {t('Ver más', config.language)}
+                    </button>
+                  )}
+                  {selectedOpponent && !showAllOpponents && (
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={() => setShowAllOpponents(true)}
+                      style={{ width: '100%', marginTop: '0.5rem', borderRadius: '10px' }}
+                    >
+                      {t('Cambiar oponente', config.language)}
+                    </button>
+                  )}
+                  {showAllOpponents && (
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={() => setShowAllOpponents(false)}
+                      style={{ width: '100%', marginTop: '0.5rem', borderRadius: '10px' }}
+                    >
+                      {t('Ver menos', config.language)}
+                    </button>
+                  )}
                 </div>
               ) : (
                 <div style={{ fontSize: '0.8rem', color: '#ef4444', marginTop: '0.25rem' }}>

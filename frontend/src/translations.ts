@@ -56,7 +56,10 @@ export const translations: Record<string, Record<string, string>> = {
     "Generar PDF": "Generar PDF",
     "Notas": "Notas",
     "Notas del Equipo": "Notas del Equipo",
-    "Filtrar por Fecha": "Filtrar por Fecha"
+    "Filtrar por Fecha": "Filtrar por Fecha",
+    "Cambiar oponente": "Cambiar oponente",
+    "Ver más": "Ver más",
+    "Ver menos": "Ver menos"
   },
   en: {
     "Configuración y Equipos": "Settings and Teams",
@@ -115,7 +118,10 @@ export const translations: Record<string, Record<string, string>> = {
     "Generar PDF": "Generate PDF",
     "Notas": "Notes",
     "Notas del Equipo": "Team Notes",
-    "Filtrar por Fecha": "Filter by Date"
+    "Filtrar por Fecha": "Filter by Date",
+    "Cambiar oponente": "Change opponent",
+    "Ver más": "Show more",
+    "Ver menos": "Show less"
   }
 };
 
