@@ -80,6 +80,7 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
   const [isExporting, setIsExporting] = useState(false);
   const [exportMessage, setExportMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [processingPlayers, setProcessingPlayers] = useState<Record<string, boolean>>({});
 
   const hexToRgb = (hex: string): [number, number, number] => {
     try {
@@ -452,7 +453,7 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
       })();
       
       if (isForGame) {
-        if (['Pago de Play', 'Pago Triangular', 'Pago Cuadrangular', 'Pago Torneo'].includes(p.description)) {
+        if (['Pago de Play', 'Pago Triangular', 'Pago Cuadrangular', 'Pago Torneo', 'Abono'].includes(p.description)) {
           return sum + (Number(p.amount) || 0);
         }
       }
@@ -491,10 +492,30 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
     const selectedGame = games.find(g => g.id === paymentControlGameId);
     if (!selectedGame) return;
 
+    if (processingPlayers[player.id]) return;
+
+    const matchesSelectedGame = (payment: Payment) => {
+      if (payment.gameId) {
+        return payment.gameId === selectedGame.id;
+      }
+      const expectedNotesFragment = `Vs ${selectedGame.opponent}`.toLowerCase();
+      const notesMatch = !!(payment.notes && payment.notes.toLowerCase().includes(expectedNotesFragment));
+      if (!notesMatch) return false;
+      const pDate = (payment.eventDate || payment.date || '').split('T')[0];
+      const gDate = (selectedGame.eventDate || selectedGame.date || '').split('T')[0];
+      return pDate === gDate;
+    };
+
+    const paidDescriptions = ['Pago de Play', 'Pago Triangular', 'Pago Cuadrangular', 'Pago Torneo', 'Abono'];
+    const playerPayments = payments.filter(pay => pay.playerId === player.id && paidDescriptions.includes(pay.description) && matchesSelectedGame(pay));
+    const paidAmount = playerPayments.reduce((sum, pay) => sum + (Number(pay.amount) || 0), 0);
+
     const gameFee = parseGameFee(selectedGame.feePerPerson);
     
     // Si no hay cuota definida, pedir al usuario que ingrese el monto
     if (!gameFee || gameFee <= 0) {
+      if (paidAmount > 0) return;
+
       setConfirmActionInput('0');
       setConfirmActionModal({
         isOpen: true,
@@ -509,9 +530,14 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
             return;
           }
           
-          // Evitar duplicados
-          const already = payments.find(p => p.playerId === player.id && p.gameId === selectedGame.id && ['Pago de Play', 'Pago Triangular', 'Pago Cuadrangular', 'Pago Torneo'].includes(p.description));
-          if (already) return;
+          if (processingPlayers[player.id]) return;
+
+          // Re-check paidAmount inside callback
+          const currentPayments = payments.filter(pay => pay.playerId === player.id && paidDescriptions.includes(pay.description) && matchesSelectedGame(pay));
+          const currentPaidAmount = currentPayments.reduce((sum, pay) => sum + (Number(pay.amount) || 0), 0);
+          if (currentPaidAmount > 0) return;
+
+          setProcessingPlayers(prev => ({ ...prev, [player.id]: true }));
 
           const payload = {
             playerId: player.id,
@@ -526,26 +552,29 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
 
           try {
             mutateData(PAYMENT_API_URL, 'POST', payload, setPayments, `softball_payments_${activeTeamId}`, (success: boolean) => {
+              setProcessingPlayers(prev => ({ ...prev, [player.id]: false }));
               if (success) {
                 updateGameTotals(selectedGame);
               }
             });
           } catch (err) {
             console.error('Error marking player paid', err);
+            setProcessingPlayers(prev => ({ ...prev, [player.id]: false }));
           }
         }
       });
       return;
     }
 
-    // Evitar duplicados: existe un pago tipo 'Pago de Play' para este jugador y juego?
-    const already = payments.find(p => p.playerId === player.id && p.gameId === selectedGame.id && ['Pago de Play', 'Pago Triangular', 'Pago Cuadrangular', 'Pago Torneo'].includes(p.description));
-    if (already) return; // ya marcado como pagado
+    const remainder = gameFee - paidAmount;
+    if (remainder <= 0) return;
+
+    setProcessingPlayers(prev => ({ ...prev, [player.id]: true }));
 
     const payload = {
       playerId: player.id,
       playerName: player.name,
-      amount: gameFee,
+      amount: remainder,
       description: 'Pago de Play',
       notes: `Juego Vs ${selectedGame.opponent} (${formatDate(selectedGame.eventDate || selectedGame.date || '')})`,
       eventDate: normalizeDate(selectedGame.eventDate),
@@ -555,6 +584,7 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
 
     try {
       mutateData(PAYMENT_API_URL, 'POST', payload, setPayments, `softball_payments_${activeTeamId}`, (success: boolean) => {
+        setProcessingPlayers(prev => ({ ...prev, [player.id]: false }));
         if (success) {
           // Recalcular totales y persistir en el juego
           updateGameTotals(selectedGame);
@@ -562,6 +592,7 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
       });
     } catch (err) {
       console.error('Error marking player paid', err);
+      setProcessingPlayers(prev => ({ ...prev, [player.id]: false }));
     }
   };
 
@@ -652,7 +683,7 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
             const selectedGame = games.find(g => g.id === paymentControlGameId);
             if (!selectedGame) return null;
             const gameDateStr = formatDate(selectedGame.eventDate || selectedGame.date || '');
-            const paidDescriptions = ['Pago de Play', 'Pago Triangular', 'Pago Cuadrangular', 'Pago Torneo'];
+            const paidDescriptions = ['Pago de Play', 'Pago Triangular', 'Pago Cuadrangular', 'Pago Torneo', 'Abono'];
             const attendanceDescriptions = [...paidDescriptions, 'Ausente', 'Deuda Pendiente'];
 
             const matchesSelectedGame = (payment: Payment) => {
@@ -670,16 +701,21 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
             const getPlayerGamePayments = (playerId: string) =>
               payments.filter(pay => pay.playerId === playerId && attendanceDescriptions.includes(pay.description) && matchesSelectedGame(pay));
 
+            const gameFee = parseGameFee(selectedGame.feePerPerson);
             const payers = [...players].filter(p => p.isActive !== false).sort((a, b) => a.name.localeCompare(b.name)).map(p => {
               const playerPayments = getPlayerGamePayments(p.id);
               const paidPayments = playerPayments.filter(pay => paidDescriptions.includes(pay.description));
               const absentPayment = playerPayments.find(pay => pay.description === 'Ausente');
               const debtPayment = playerPayments.find(pay => pay.description === 'Deuda Pendiente');
+              const paidAmount = paidPayments.reduce((sum, pay) => sum + (Number(pay.amount) || 0), 0);
+              const status = paidPayments.length > 0 ? 'paid' : absentPayment ? 'absent' : debtPayment ? 'debt' : 'unpaid';
+              const isFullyPaid = gameFee > 0 ? paidAmount >= gameFee : status === 'paid';
               return {
                 player: p,
                 payments: playerPayments,
-                paidAmount: paidPayments.reduce((sum, pay) => sum + (Number(pay.amount) || 0), 0),
-                status: paidPayments.length > 0 ? 'paid' : absentPayment ? 'absent' : debtPayment ? 'debt' : 'unpaid',
+                paidAmount,
+                status,
+                isFullyPaid,
                 displayPayment: paidPayments.length > 0 ? paidPayments[paidPayments.length - 1] : absentPayment || debtPayment,
               };
             });
@@ -897,7 +933,7 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
 
                 {payers.length === 0 ? <div className="empty-state"><h3>Roster vacío.</h3></div> : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
-                    {payers.map(({ player, status, paidAmount, displayPayment }) => (
+                    {payers.map(({ player, status, paidAmount, displayPayment, isFullyPaid }) => (
                       <div key={player.id} className="player-card" style={{ borderLeft: `5px solid ${status === 'absent' ? '#94a3b8' : status === 'debt' ? '#f59e0b' : status === 'paid' ? '#22c55e' : '#ef4444'}` }}>
                         <div className="flex-responsive" style={{ gap: '0.75rem' }}>
                           <div style={{ minWidth: 0, flex: 1 }}>
@@ -907,50 +943,125 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
                             </div>
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-start' }}>
-                            {status === 'unpaid' ? (
+                            {!isFullyPaid && status !== 'absent' && status !== 'debt' ? (
                               <>
-                                <button onClick={() => markPlayerPaid(player)} className="btn-primary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', flex: 1, minWidth: '70px', background: '#22c55e' }}>Pagó</button>
                                 <button 
+                                  disabled={processingPlayers[player.id]}
+                                  onClick={() => markPlayerPaid(player)} 
+                                  className="btn-primary" 
+                                  style={{ 
+                                    padding: '0.4rem 0.8rem', 
+                                    fontSize: '0.8rem', 
+                                    flex: 1, 
+                                    minWidth: '70px', 
+                                    background: '#22c55e',
+                                    opacity: processingPlayers[player.id] ? 0.6 : 1,
+                                    cursor: processingPlayers[player.id] ? 'not-allowed' : 'pointer'
+                                  }}
+                                >
+                                  {processingPlayers[player.id] ? '...' : 'Pagó'}
+                                </button>
+                                <button 
+                                  disabled={processingPlayers[player.id]}
                                   onClick={() => {
+                                    if (processingPlayers[player.id]) return;
                                     setConfirmActionModal({
                                       isOpen: true,
                                       title: 'Ausencia',
                                       message: `¿${player.name} faltó?`,
                                       onConfirm: () => {
+                                        if (processingPlayers[player.id]) return;
+                                        setProcessingPlayers(prev => ({ ...prev, [player.id]: true }));
                                         try {
                                           const payload = { playerId: player.id, playerName: player.name, amount: 0, description: 'Ausente', notes: `Juego Vs ${selectedGame.opponent} (${gameDateStr})`, eventDate: normalizeDate(selectedGame.eventDate), gameId: selectedGame.id };
-                                          mutateData(PAYMENT_API_URL, 'POST', payload, setPayments, `softball_payments_${activeTeamId}`, () => { updateGameTotals(selectedGame); });
-                                        } catch { alert("Error"); }
+                                          mutateData(PAYMENT_API_URL, 'POST', payload, setPayments, `softball_payments_${activeTeamId}`, (success: boolean) => {
+                                            setProcessingPlayers(prev => ({ ...prev, [player.id]: false }));
+                                            if (success) {
+                                              updateGameTotals(selectedGame);
+                                            }
+                                          });
+                                        } catch {
+                                          setProcessingPlayers(prev => ({ ...prev, [player.id]: false }));
+                                          alert("Error");
+                                        }
                                       }
                                     });
                                   }} 
-                                  className="btn-secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', flex: 1, minWidth: '70px' }}
+                                  className="btn-secondary" 
+                                  style={{ 
+                                    padding: '0.4rem 0.8rem', 
+                                    fontSize: '0.8rem', 
+                                    flex: 1, 
+                                    minWidth: '70px',
+                                    opacity: processingPlayers[player.id] ? 0.6 : 1,
+                                    cursor: processingPlayers[player.id] ? 'not-allowed' : 'pointer'
+                                  }}
                                 >Ausente</button>
                                 <button 
+                                  disabled={processingPlayers[player.id]}
                                   onClick={() => {
-                                    setConfirmActionInput('10');
+                                    if (processingPlayers[player.id]) return;
+                                    const defaultAbono = parseGameFee(selectedGame.feePerPerson) / 2 || 5;
+                                    setConfirmActionInput(String(defaultAbono));
                                     setConfirmActionModal({
                                       isOpen: true,
-                                      title: 'Asignar Deuda',
-                                      message: `¿Deseas marcar una deuda a ${player.name}?`,
+                                      title: 'Registrar Abono',
+                                      message: `¿Cuánto abonó ${player.name}?`,
                                       requiresInput: true,
-                                      inputLabel: 'Monto de la Deuda ($)',
+                                      inputLabel: 'Monto del Abono ($)',
                                       onConfirm: (val?: string) => {
-                                        const amount = Number(val) || 10;
+                                        if (processingPlayers[player.id]) return;
+                                        const amount = Number(val) || 0;
+                                        if (amount <= 0) {
+                                          alert('Por favor ingresa un monto válido');
+                                          return;
+                                        }
+                                        setProcessingPlayers(prev => ({ ...prev, [player.id]: true }));
                                         try {
-                                          const payload = { playerId: player.id, playerName: player.name, amount, description: 'Deuda Pendiente', notes: `Juego Vs ${selectedGame.opponent} (${gameDateStr})`, eventDate: normalizeDate(selectedGame.eventDate), gameId: selectedGame.id };
-                                          mutateData(PAYMENT_API_URL, 'POST', payload, setPayments, `softball_payments_${activeTeamId}`, () => { updateGameTotals(selectedGame); });
-                                        } catch { alert("Error"); }
+                                          const payload = { 
+                                            playerId: player.id, 
+                                            playerName: player.name, 
+                                            amount, 
+                                            description: 'Abono', 
+                                            notes: `Abono Juego Vs ${selectedGame.opponent} (${gameDateStr})`, 
+                                            eventDate: normalizeDate(selectedGame.eventDate), 
+                                            gameId: selectedGame.id,
+                                            fieldPayment: selectedGame.fieldPayment !== undefined ? Number(selectedGame.fieldPayment) : undefined
+                                          };
+                                          mutateData(PAYMENT_API_URL, 'POST', payload, setPayments, `softball_payments_${activeTeamId}`, (success: boolean) => {
+                                            setProcessingPlayers(prev => ({ ...prev, [player.id]: false }));
+                                            if (success) {
+                                              updateGameTotals(selectedGame);
+                                            }
+                                          });
+                                        } catch {
+                                          setProcessingPlayers(prev => ({ ...prev, [player.id]: false }));
+                                          alert("Error");
+                                        }
                                       }
                                     });
                                   }} 
-                                  className="btn-secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', border: '1px solid #ef4444', color: '#ef4444', background: 'transparent', flex: 1, minWidth: '70px' }}
-                                >Deuda</button>
+                                  className="btn-secondary" 
+                                  style={{ 
+                                    padding: '0.4rem 0.8rem', 
+                                    fontSize: '0.8rem', 
+                                    border: `1px solid ${config.primaryColor}`, 
+                                    color: config.primaryColor, 
+                                    background: 'transparent', 
+                                    flex: 1, 
+                                    minWidth: '70px',
+                                    opacity: processingPlayers[player.id] ? 0.6 : 1,
+                                    cursor: processingPlayers[player.id] ? 'not-allowed' : 'pointer'
+                                  }}
+                                >Abono</button>
+                                {paidAmount > 0 && (
+                                  <button className="btn-icon" onClick={() => confirmDelete('payment', displayPayment?.id || '')} style={{ color: '#ef4444', padding: '0.4rem' }}><Trash2 size={20} /></button>
+                                )}
                               </>
                             ) : (
-                               <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
-                                 <button className="btn-icon" onClick={() => confirmDelete('payment', displayPayment?.id || '')} style={{ color: '#ef4444' }}><Trash2 size={20} /></button>
-                               </div>
+                              <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                                <button className="btn-icon" onClick={() => confirmDelete('payment', displayPayment?.id || '')} style={{ color: '#ef4444' }}><Trash2 size={20} /></button>
+                              </div>
                             )}
                           </div>
                         </div>
